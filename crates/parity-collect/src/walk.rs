@@ -18,9 +18,16 @@ pub const DEFAULT_BATCH: u32 = 500;
 
 pub type Sink<'a> = dyn FnMut(Response) -> io::Result<()> + 'a;
 
-// Runs a walk request. Errors returned are errors writing to `out`; problems
-// with the request or the file system are reported over `out`.
-pub fn walk(req: &WalkRequest, sensitive: &Sensitive, out: &mut Sink) -> io::Result<()> {
+// Runs a walk request. Errors returned are errors writing to `out`, or
+// `closed` reporting that nobody reads `out` any more (checked after every
+// entry and while hashing large files); problems with the request or the file
+// system are reported over `out`.
+pub fn walk(
+    req: &WalkRequest,
+    sensitive: &Sensitive,
+    closed: fn() -> bool,
+    out: &mut Sink,
+) -> io::Result<()> {
     if let Err(message) = check(req) {
         return out(Response::Error {
             kind: ErrorKind::InvalidRequest,
@@ -36,6 +43,7 @@ pub fn walk(req: &WalkRequest, sensitive: &Sensitive, out: &mut Sink) -> io::Res
         sensitive,
         batch: Vec::with_capacity(batch_size),
         batch_size,
+        closed,
         out,
     };
     for root in &req.roots {
@@ -63,6 +71,7 @@ struct Walker<'a, 'b> {
     sensitive: &'a Sensitive,
     batch: Vec<Entry>,
     batch_size: usize,
+    closed: fn() -> bool,
     out: &'a mut Sink<'b>,
 }
 
@@ -80,6 +89,11 @@ impl Walker<'_, '_> {
     }
 
     fn push(&mut self, e: Entry) -> io::Result<()> {
+        // Without this, a walk would go on until the batch is full and its
+        // write fails, which can take long on a slow disk.
+        if (self.closed)() {
+            return Err(io::Error::new(io::ErrorKind::BrokenPipe, "session closed"));
+        }
         self.batch.push(e);
         if self.batch.len() >= self.batch_size {
             self.flush()?;
@@ -184,7 +198,7 @@ impl Walker<'_, '_> {
                 } else if st.st_size as u64 > self.req.max_hash_size {
                     HashState::TooLarge
                 } else {
-                    hash_file(dir, name, self.req.max_hash_size)
+                    hash_file(dir, name, self.req.max_hash_size, self.closed)
                 }
             }
             _ => HashState::None,
@@ -206,7 +220,7 @@ impl Walker<'_, '_> {
     }
 }
 
-fn hash_file(dir: &OwnedFd, name: &CStr, max: u64) -> HashState {
+fn hash_file(dir: &OwnedFd, name: &CStr, max: u64, closed: fn() -> bool) -> HashState {
     let name = name.to_owned();
     let (mut file, _) = match fs::open_regular_at(dir, &name, max) {
         Ok(x) => x,
@@ -219,9 +233,10 @@ fn hash_file(dir: &OwnedFd, name: &CStr, max: u64) -> HashState {
     let mut chunks = 0u32;
     match fs::read_chunks(&mut file, max, 64 * 1024, |b| {
         h.update(b);
-        // Large files take a while: stop early if the session has ended.
+        // Large files take a while: stop early if the session has ended (the
+        // walk then ends at the next entry).
         chunks = chunks.wrapping_add(1);
-        if chunks % 256 == 0 && sys::output_closed() {
+        if chunks % 256 == 0 && closed() {
             return Err(io::Error::other("session closed"));
         }
         Ok(())

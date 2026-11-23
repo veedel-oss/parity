@@ -10,6 +10,7 @@
 use std::io::{self, Cursor, Write};
 use std::os::unix::fs::symlink;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use parity_collect::session::{self, Config, End};
 use parity_proto::*;
@@ -62,6 +63,7 @@ fn config() -> Config {
     Config {
         dpkg_status: b"/nonexistent/parity-test/dpkg-status".to_vec(),
         sensitive: Vec::new(),
+        output_closed: || false,
     }
 }
 
@@ -306,6 +308,34 @@ fn walk_streams_in_batches() {
     let mut sorted = entries.clone();
     sorted.sort_by(|a, b| a.path.cmp(&b.path));
     assert_eq!(entries, sorted, "names are sorted");
+}
+
+#[test]
+fn walk_stops_when_the_session_has_ended() {
+    // The session ends while the 16th entry is walked: the batch of the
+    // first 10 is sent, nothing after it, and the session ends with an error
+    // instead of walking on until the next write fails.
+    static CHECKS: AtomicUsize = AtomicUsize::new(0);
+    let t = TempDir::new("closed");
+    for i in 0..25 {
+        std::fs::write(t.path(&format!("f{i:02}")), b"").unwrap();
+    }
+    let closed = Config {
+        output_closed: || CHECKS.fetch_add(1, Ordering::SeqCst) >= 15,
+        ..config()
+    };
+    let req = WalkRequest {
+        roots: vec![t.bytes("")],
+        batch_size: 10,
+        ..Default::default()
+    };
+    let (r, _, resp) = session_in(
+        &closed,
+        Some(Hello::current()),
+        &[Request::Walk(req), Request::End],
+    );
+    assert!(r.is_err());
+    assert!(matches!(&resp[..], [Response::Entries(v)] if v.len() == 10));
 }
 
 #[test]

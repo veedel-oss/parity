@@ -9,7 +9,7 @@ use parity_proto::{
 
 use crate::fs::{self, OpenError};
 use crate::sensitive::{self, Sensitive};
-use crate::{path, walk};
+use crate::{path, sys, walk};
 
 // Largest file content sent for a [`Request::ReadFile`].
 pub const MAX_READ: u64 = 64 * 1024 * 1024;
@@ -17,13 +17,17 @@ pub const MAX_READ: u64 = 64 * 1024 * 1024;
 pub const MAX_DPKG_STATUS: u64 = 256 * 1024 * 1024;
 pub const DPKG_STATUS: &[u8] = b"/var/lib/dpkg/status";
 
-// What collect mode reads that no request names: the dpkg status database
-// and the built-in sensitive patterns. On a target these are fixed
-// ([`Config::target`]); tests pass their own fixtures instead, so they never
-// depend on the system that runs them.
+// What collect mode reads that no request names: the dpkg status database,
+// the built-in sensitive patterns and whether the SSH session has ended. On a
+// target these are fixed ([`Config::target`]); tests pass their own fixtures
+// instead, so they never depend on the system that runs them.
 pub struct Config {
     pub dpkg_status: Vec<u8>,
     pub sensitive: Vec<Vec<u8>>,
+    // Whether nobody reads the output any more. Checked during long
+    // requests, so collect mode exits soon after the session ends, not only
+    // at its next write.
+    pub output_closed: fn() -> bool,
 }
 
 impl Config {
@@ -31,6 +35,7 @@ impl Config {
         Config {
             dpkg_status: DPKG_STATUS.to_vec(),
             sensitive: sensitive::builtin(),
+            output_closed: sys::output_closed,
         }
     }
 }
@@ -96,7 +101,7 @@ pub fn run(input: &mut dyn Read, output: &mut dyn Write, config: &Config) -> Res
             }
             Request::DpkgStatus => send_file(&config.dpkg_status, MAX_DPKG_STATUS, None, &mut send),
             Request::Walk(w) => match cache.get(&config.sensitive, &w.sensitive.extra) {
-                Ok(s) => walk::walk(&w, s, &mut send),
+                Ok(s) => walk::walk(&w, s, config.output_closed, &mut send),
                 Err(e) => send(error(ErrorKind::InvalidRequest, e)),
             },
             Request::ReadFile(r) => match cache.get(&config.sensitive, &r.sensitive.extra) {
