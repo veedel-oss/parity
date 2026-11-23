@@ -1,0 +1,5 @@
+#!/bin/sh
+# Stand-in for sudo inside the Linux 3.2 test VM, run as root: sets SUDO_UID
+# to the user "tester" who started the protocol session, as sudo would.
+[ "$1" = -- ] && shift
+SUDO_UID=1000 SUDO_GID=1000 exec "$@"

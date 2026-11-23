@@ -1,0 +1,76 @@
+#!/bin/sh
+# /init of the initramfs that tests/vm/run.sh boots with the Linux 3.2 kernel
+# of Debian 7. There is no ssh and no sudo: bin/ssh and bin/sudo stand in for
+# them (see there), everything else is the real binary and the real kernel.
+# Prints "ok"/"FAIL" lines and "VM-DONE failures=N" on the console.
+
+export PATH=/bin HOME=/root
+/bin/busybox --install -s /bin
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev
+mount -t tmpfs tmp /tmp
+echo "VM-KERNEL $(uname -r)"
+
+failures=0
+# check NAME EXPECTED_EXIT PATTERN COMMAND... (a command that hangs is killed
+# after 300 seconds and fails)
+check() {
+    name=$1 want=$2 pattern=$3
+    shift 3
+    out=$(timeout 300 "$@" 2>&1)
+    rc=$?
+    if [ "$rc" != "$want" ] || ! printf '%s\n' "$out" | grep -qE -- "$pattern"; then
+        echo "FAIL $name: exit $rc (want $want), pattern '$pattern'"
+        printf '%s\n' "$out" | head -60 | sed 's/^/    /'
+        failures=$((failures + 1))
+    else
+        echo "ok   $name"
+    fi
+}
+leftovers() {
+    if ps | grep -v grep | grep -q 'parity '; then
+        echo "FAIL processes left:"
+        ps | grep 'parity '
+        failures=$((failures + 1))
+    else
+        echo "ok   no processes left"
+    fi
+}
+
+# Unit and integration tests of the workspace, built for musl, as root.
+for t in /tests/*; do
+    check "tests $(basename "$t")" 0 "test result: ok" "$t" --test-threads=1
+done
+
+mkdir -p /var/lib/dpkg /data/etc
+printf 'Package: busybox-static\nStatus: install ok installed\nArchitecture: amd64\nVersion: 1.0\n\n' >/var/lib/dpkg/status
+echo "a = 1" >/data/etc/app.conf
+ln -s app.conf /data/etc/link
+
+check "version" 0 "^parity " parity --version
+check "ping none" 0 "collect mode running" parity ping --become none local
+check "ping sudo" 0 "collect mode running" parity ping local
+check "packages" 0 "busybox-static" parity packages local
+check "compare config" 0 "Result: identical" parity compare --root /data a b
+check "compare filesystem" 0 "Result: identical" parity compare --check filesystem --exclude /tmp a b
+
+# Reading never changes access times. touch sets atime = mtime, so relatime
+# would update the atime on a plain read.
+touch -d 2020-01-01 /data/etc /data/etc/app.conf /var/lib/dpkg/status
+before=$(stat -c '%X %n' /data/etc /data/etc/app.conf /var/lib/dpkg/status)
+check "compare for atime" 0 "Result: identical" parity compare --root /data a b
+after=$(stat -c '%X %n' /data/etc /data/etc/app.conf /var/lib/dpkg/status)
+if [ "$before" != "$after" ]; then
+    echo "FAIL access times changed:"
+    echo "$before"
+    echo "$after"
+    failures=$((failures + 1))
+else
+    echo "ok   access times unchanged"
+fi
+
+sleep 1
+leftovers
+echo "VM-DONE failures=$failures"
+poweroff -f
