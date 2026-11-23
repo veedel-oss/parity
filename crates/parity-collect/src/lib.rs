@@ -60,7 +60,7 @@ fn run(args: &[OsString], euid: u32) -> Result<(), String> {
     let stdout = dup(std::io::stdout().as_fd())?;
     let mut input = BufReader::new(std::fs::File::from(stdin));
     let mut output = BufWriter::new(std::fs::File::from(stdout));
-    session::run(&mut input, &mut output).map(|_| ())
+    session::run(&mut input, &mut output, &session::Config::target()).map(|_| ())
 }
 
 #[cfg(test)]

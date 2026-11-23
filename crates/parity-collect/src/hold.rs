@@ -53,32 +53,51 @@ pub fn main(args: &[OsString]) -> i32 {
     0
 }
 
+// Owner and mode of one path on the way from the binary up to `/`.
+struct PathInfo {
+    path: std::path::PathBuf,
+    uid: u32,
+    mode: u32,
+    is_dir: bool,
+}
+
 // The CLI runs this very binary as root next. Refuse if a third user could
-// replace it: the binary and every directory above it must belong to root
-// or the user and must not be writable by others (directories with the
-// sticky bit excepted, there only the owner of an entry can replace it).
-// Group write is accepted: Debian ships `/usr/local/bin` as `root:staff`
-// 2775, and sudo's `secure_path` trusts it the same way.
+// replace it (see [`check_chain`]).
 fn check_safe_path(exe: &std::path::Path) -> Result<(), String> {
     use std::os::unix::fs::MetadataExt;
-    // SAFETY: getuid has no preconditions.
-    let uid = unsafe { libc::getuid() };
-    let mut p = Some(exe);
-    while let Some(cur) = p {
+    let mut chain = Vec::new();
+    for cur in exe.ancestors() {
         let m =
             std::fs::metadata(cur).map_err(|e| format!("cannot check {}: {e}", cur.display()))?;
-        let writable = m.mode() & 0o002 != 0;
-        let sticky_dir = m.is_dir() && m.mode() & 0o1000 != 0;
-        if (m.uid() != 0 && m.uid() != uid) || (writable && !sticky_dir) {
+        chain.push(PathInfo {
+            path: cur.to_path_buf(),
+            uid: m.uid(),
+            mode: m.mode() & 0o7777,
+            is_dir: m.is_dir(),
+        });
+    }
+    // SAFETY: getuid has no preconditions.
+    check_chain(exe, &chain, unsafe { libc::getuid() })
+}
+
+// The binary and every directory above it must belong to root or the user
+// `uid` and must not be writable by others (directories with the sticky bit
+// excepted, there only the owner of an entry can replace it). Group write
+// is accepted: Debian ships `/usr/local/bin` as `root:staff` 2775, and
+// sudo's `secure_path` trusts it the same way.
+fn check_chain(exe: &std::path::Path, chain: &[PathInfo], uid: u32) -> Result<(), String> {
+    for p in chain {
+        let writable = p.mode & 0o002 != 0;
+        let sticky_dir = p.is_dir && p.mode & 0o1000 != 0;
+        if (p.uid != 0 && p.uid != uid) || (writable && !sticky_dir) {
             return Err(format!(
                 "refusing to run {} as root: {} can be changed by other users (owner {}, mode {:04o})",
                 exe.display(),
-                cur.display(),
-                m.uid(),
-                m.mode() & 0o7777
+                p.path.display(),
+                p.uid,
+                p.mode
             ));
         }
-        p = cur.parent();
     }
     Ok(())
 }
@@ -114,34 +133,64 @@ fn wait_for_hangup() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
+
+    const USER: u32 = 1000;
+
+    // The chain of /usr/local/bin/parity with the given owner and mode of
+    // the binary and of the directory it is in.
+    fn chain(file: (u32, u32), dir: (u32, u32)) -> Vec<PathInfo> {
+        let info = |path: &str, (uid, mode): (u32, u32), is_dir| PathInfo {
+            path: path.into(),
+            uid,
+            mode,
+            is_dir,
+        };
+        vec![
+            info("/usr/local/bin/parity", file, false),
+            info("/usr/local/bin", dir, true),
+            info("/usr/local", (0, 0o755), true),
+            info("/usr", (0, 0o755), true),
+            info("/", (0, 0o755), true),
+        ]
+    }
+
+    fn check(file: (u32, u32), dir: (u32, u32)) -> Result<(), String> {
+        check_chain(Path::new("/usr/local/bin/parity"), &chain(file, dir), USER)
+    }
 
     #[test]
-    fn safe_paths() {
-        assert!(check_safe_path(std::path::Path::new("/")).is_ok());
-        let dir = std::env::temp_dir().join(format!("parity-hold-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let f = dir.join("parity");
-        std::fs::write(&f, b"").unwrap();
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
-        std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o755)).unwrap();
-        // The temp dir itself is world-writable but sticky.
-        let ok = check_safe_path(&f);
-        std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o775)).unwrap();
-        let group = check_safe_path(&f);
-        std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o757)).unwrap();
-        let bad_file = check_safe_path(&f);
-        std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o755)).unwrap();
-        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o777)).unwrap();
-        let bad_dir = check_safe_path(&f);
-        std::fs::remove_dir_all(&dir).unwrap();
-        assert!(ok.is_ok(), "{ok:?}");
-        assert!(group.is_ok(), "{group:?}");
+    fn owners() {
+        assert!(check((0, 0o755), (0, 0o755)).is_ok());
+        assert!(check((USER, 0o755), (USER, 0o755)).is_ok());
+        let e = check((1001, 0o755), (0, 0o755)).unwrap_err();
         assert!(
-            bad_file
-                .unwrap_err()
-                .contains("can be changed by other users")
+            e.contains(
+                "/usr/local/bin/parity can be changed by other users (owner 1001, mode 0755)"
+            ),
+            "{e}"
         );
-        assert!(bad_dir.is_err());
+        assert!(check((0, 0o755), (1001, 0o755)).is_err());
+    }
+
+    #[test]
+    fn modes() {
+        // Group write: Debian's /usr/local/bin is root:staff 2775.
+        assert!(check((0, 0o775), (0, 0o2775)).is_ok());
+        // Writable by others.
+        assert!(check((0, 0o757), (0, 0o755)).is_err());
+        let e = check((0, 0o755), (0, 0o777)).unwrap_err();
+        assert!(e.contains("/usr/local/bin can be changed"), "{e}");
+        // A sticky directory protects its entries, a sticky file nothing.
+        assert!(check((0, 0o755), (0, 0o1777)).is_ok());
+        assert!(check((0, 0o1757), (0, 0o755)).is_err());
+    }
+
+    #[test]
+    fn whole_chain_is_checked() {
+        let mut c = chain((0, 0o755), (0, 0o755));
+        c[4].mode = 0o777;
+        let e = check_chain(Path::new("/usr/local/bin/parity"), &c, USER).unwrap_err();
+        assert!(e.contains(": / can be changed"), "{e}");
     }
 }

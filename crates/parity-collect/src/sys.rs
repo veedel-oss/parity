@@ -202,8 +202,12 @@ pub fn is_pseudo_fs(fd: RawFd) -> io::Result<bool> {
     // SAFETY: st points to writable memory of the right size.
     retry(-1, || unsafe { libc::fstatfs(fd, st.as_mut_ptr()) })?;
     // SAFETY: fstatfs succeeded and filled st.
-    let t = unsafe { st.assume_init() }.f_type as u32;
-    Ok(PSEUDO_FS.contains(&t))
+    Ok(is_pseudo_fs_type(unsafe { st.assume_init() }.f_type as u32))
+}
+
+// Whether a file system type (`f_type` of `statfs`) is a pseudo file system.
+fn is_pseudo_fs_type(t: u32) -> bool {
+    PSEUDO_FS.contains(&t)
 }
 
 // Whether nobody reads stdout any more (the SSH session has ended).
@@ -229,5 +233,39 @@ pub fn file_kind(mode: libc::mode_t) -> parity_proto::FileKind {
         libc::S_IFIFO => Fifo,
         libc::S_IFSOCK => Socket,
         _ => Unknown,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pseudo_fs_types() {
+        // The kernel's magic numbers (linux/magic.h), as libc names them.
+        for t in [
+            libc::PROC_SUPER_MAGIC,
+            libc::SYSFS_MAGIC,
+            libc::DEBUGFS_MAGIC,
+            libc::TRACEFS_MAGIC,
+            libc::SECURITYFS_MAGIC,
+            libc::CGROUP_SUPER_MAGIC,
+            libc::CGROUP2_SUPER_MAGIC,
+            libc::BPF_FS_MAGIC,
+            libc::DEVPTS_SUPER_MAGIC,
+        ] {
+            assert!(is_pseudo_fs_type(t as u32), "{t:#x}");
+        }
+        // File systems with data.
+        for t in [
+            libc::EXT4_SUPER_MAGIC,
+            libc::TMPFS_MAGIC,
+            libc::XFS_SUPER_MAGIC,
+            libc::BTRFS_SUPER_MAGIC,
+            libc::NFS_SUPER_MAGIC,
+            libc::OVERLAYFS_SUPER_MAGIC,
+        ] {
+            assert!(!is_pseudo_fs_type(t as u32), "{t:#x}");
+        }
     }
 }

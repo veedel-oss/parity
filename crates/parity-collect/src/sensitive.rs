@@ -10,6 +10,9 @@
 //! is built, collect mode notes device and inode of every sensitive regular
 //! file with more than one link, and checks entries with more than one link
 //! against them.
+//!
+//! The built-in patterns are passed in ([`builtin`] on a target), so tests
+//! can use patterns that point into their own fixtures.
 
 use std::collections::HashSet;
 use std::os::fd::AsRawFd;
@@ -48,6 +51,11 @@ const LINK_SCAN_BUDGET: usize = 20_000;
 
 pub const MAX_EXTRA: usize = 256;
 
+// The built-in patterns, as [`Sensitive::new`] takes them.
+pub fn builtin() -> Vec<Vec<u8>> {
+    BUILTIN.iter().map(|p| p.as_bytes().to_vec()).collect()
+}
+
 pub struct Sensitive {
     patterns: Vec<Vec<Vec<u8>>>,
     // Device and inode of sensitive regular files with more than one link.
@@ -55,25 +63,28 @@ pub struct Sensitive {
 }
 
 impl Sensitive {
-    pub fn new(extra: &[Vec<u8>]) -> Result<Self, String> {
+    // Builds the list from the patterns that always apply and the extra
+    // patterns of a request, and looks for hard links to sensitive files.
+    pub fn new(builtin: &[Vec<u8>], extra: &[Vec<u8>]) -> Result<Self, String> {
+        let mut s = Self::from_patterns(builtin, extra)?;
+        s.collect_linked();
+        Ok(s)
+    }
+
+    // The patterns only, without looking for hard links: opens no file.
+    fn from_patterns(builtin: &[Vec<u8>], extra: &[Vec<u8>]) -> Result<Self, String> {
         if extra.len() > MAX_EXTRA {
             return Err(format!("more than {MAX_EXTRA} sensitive patterns"));
         }
         let mut patterns = Vec::new();
-        for p in BUILTIN
-            .iter()
-            .map(|p| p.as_bytes())
-            .chain(extra.iter().map(|p| &p[..]))
-        {
+        for p in builtin.iter().chain(extra) {
             path::validate(p).map_err(|e| format!("invalid sensitive pattern: {e}"))?;
             patterns.push(path::components(p).map(<[u8]>::to_vec).collect());
         }
-        let mut s = Sensitive {
+        Ok(Sensitive {
             patterns,
             linked: HashSet::new(),
-        };
-        s.collect_linked();
-        Ok(s)
+        })
     }
 
     pub fn matches(&self, p: &[u8]) -> bool {
@@ -195,8 +206,8 @@ mod tests {
     }
 
     #[test]
-    fn builtin() {
-        let s = Sensitive::new(&[]).unwrap();
+    fn builtin_patterns() {
+        let s = Sensitive::from_patterns(&builtin(), &[]).unwrap();
         for p in [
             &b"/etc/shadow"[..],
             b"/etc/gshadow-",
@@ -224,11 +235,12 @@ mod tests {
 
     #[test]
     fn extra_patterns_add() {
-        let s = Sensitive::new(&[b"/srv/*/secrets".to_vec()]).unwrap();
+        let new = |extra: &[Vec<u8>]| Sensitive::from_patterns(&builtin(), extra);
+        let s = new(&[b"/srv/*/secrets".to_vec()]).unwrap();
         assert!(s.matches(b"/srv/app/secrets/db"));
         assert!(s.matches(b"/etc/shadow"));
-        assert!(Sensitive::new(&[b"relative".to_vec()]).is_err());
-        assert!(Sensitive::new(&[b"/a/../b".to_vec()]).is_err());
-        assert!(Sensitive::new(&vec![b"/x".to_vec(); MAX_EXTRA + 1]).is_err());
+        assert!(new(&[b"relative".to_vec()]).is_err());
+        assert!(new(&[b"/a/../b".to_vec()]).is_err());
+        assert!(new(&vec![b"/x".to_vec(); MAX_EXTRA + 1]).is_err());
     }
 }

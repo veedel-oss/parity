@@ -8,7 +8,7 @@ use parity_proto::{
 };
 
 use crate::fs::{self, OpenError};
-use crate::sensitive::Sensitive;
+use crate::sensitive::{self, Sensitive};
 use crate::{path, walk};
 
 // Largest file content sent for a [`Request::ReadFile`].
@@ -16,6 +16,24 @@ pub const MAX_READ: u64 = 64 * 1024 * 1024;
 // Largest dpkg status database sent.
 pub const MAX_DPKG_STATUS: u64 = 256 * 1024 * 1024;
 pub const DPKG_STATUS: &[u8] = b"/var/lib/dpkg/status";
+
+// What collect mode reads that no request names: the dpkg status database
+// and the built-in sensitive patterns. On a target these are fixed
+// ([`Config::target`]); tests pass their own fixtures instead, so they never
+// depend on the system that runs them.
+pub struct Config {
+    pub dpkg_status: Vec<u8>,
+    pub sensitive: Vec<Vec<u8>>,
+}
+
+impl Config {
+    pub fn target() -> Config {
+        Config {
+            dpkg_status: DPKG_STATUS.to_vec(),
+            sensitive: sensitive::builtin(),
+        }
+    }
+}
 
 // How a session ended without error.
 #[derive(Debug, PartialEq, Eq)]
@@ -26,7 +44,7 @@ pub enum End {
     Eof,
 }
 
-pub fn run(input: &mut dyn Read, output: &mut dyn Write) -> Result<End, String> {
+pub fn run(input: &mut dyn Read, output: &mut dyn Write, config: &Config) -> Result<End, String> {
     let werr = |e: io::Error| format!("cannot write to stdout: {e}");
     write_frame(output, &Hello::current().encode())
         .map_err(|e| format!("cannot write to stdout: {e}"))?;
@@ -76,12 +94,12 @@ pub fn run(input: &mut dyn Read, output: &mut dyn Write) -> Result<End, String> 
                 send(Response::Bye).map_err(werr)?;
                 return Ok(End::Request);
             }
-            Request::DpkgStatus => send_file(DPKG_STATUS, MAX_DPKG_STATUS, None, &mut send),
-            Request::Walk(w) => match cache.get(&w.sensitive.extra) {
+            Request::DpkgStatus => send_file(&config.dpkg_status, MAX_DPKG_STATUS, None, &mut send),
+            Request::Walk(w) => match cache.get(&config.sensitive, &w.sensitive.extra) {
                 Ok(s) => walk::walk(&w, s, &mut send),
                 Err(e) => send(error(ErrorKind::InvalidRequest, e)),
             },
-            Request::ReadFile(r) => match cache.get(&r.sensitive.extra) {
+            Request::ReadFile(r) => match cache.get(&config.sensitive, &r.sensitive.extra) {
                 Ok(s) => read_file(&r, s, &mut send),
                 Err(e) => send(error(ErrorKind::InvalidRequest, e)),
             },
@@ -98,9 +116,9 @@ struct SensitiveCache {
 }
 
 impl SensitiveCache {
-    fn get(&mut self, extra: &[Vec<u8>]) -> Result<&Sensitive, String> {
+    fn get(&mut self, builtin: &[Vec<u8>], extra: &[Vec<u8>]) -> Result<&Sensitive, String> {
         if self.current.as_ref().is_none_or(|(e, _)| e != extra) {
-            self.current = Some((extra.to_vec(), Sensitive::new(extra)?));
+            self.current = Some((extra.to_vec(), Sensitive::new(builtin, extra)?));
         }
         Ok(&self.current.as_ref().expect("just set").1)
     }

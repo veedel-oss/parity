@@ -1,11 +1,18 @@
 //! Collect mode over byte streams. The root check is bypassed by calling the
 //! session directly; everything else is the real code path.
+//!
+//! The tests never depend on the system that runs them: files they read are
+//! fixtures they create, and the paths collect mode reads on its own (the
+//! dpkg database, the built-in sensitive list) are replaced by fixtures
+//! through [`session::Config`]. What only a real target can show (access
+//! times on its file systems, `/proc`) is tested in `tests/e2e` and
+//! `tests/vm`.
 
 use std::io::{self, Cursor, Write};
 use std::os::unix::fs::symlink;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use parity_collect::session::{self, End};
+use parity_collect::session::{self, Config, End};
 use parity_proto::*;
 
 struct TempDir(PathBuf);
@@ -50,18 +57,35 @@ fn frames(hello: Option<Hello>, reqs: &[Request]) -> Vec<u8> {
     buf
 }
 
+// No built-in sensitive patterns and a dpkg database that does not exist:
+// nothing outside the fixtures is read. Tests of these set their own.
+fn config() -> Config {
+    Config {
+        dpkg_status: b"/nonexistent/parity-test/dpkg-status".to_vec(),
+        sensitive: Vec::new(),
+    }
+}
+
 // Runs a session and returns its result, the collect hello and the responses.
 fn session(reqs: &[Request]) -> (Result<End, String>, Hello, Vec<Response>) {
-    session_with(Some(Hello::current()), reqs)
+    session_in(&config(), Some(Hello::current()), reqs)
 }
 
 fn session_with(
     hello: Option<Hello>,
     reqs: &[Request],
 ) -> (Result<End, String>, Hello, Vec<Response>) {
+    session_in(&config(), hello, reqs)
+}
+
+fn session_in(
+    config: &Config,
+    hello: Option<Hello>,
+    reqs: &[Request],
+) -> (Result<End, String>, Hello, Vec<Response>) {
     let mut input = Cursor::new(frames(hello, reqs));
     let mut output = Vec::new();
-    let r = session::run(&mut input, &mut output);
+    let r = session::run(&mut input, &mut output, config);
     let mut out = &output[..];
     let h = Hello::decode(&read_frame(&mut out, MAX_FRAME).unwrap().unwrap()).unwrap();
     let mut resp = Vec::new();
@@ -114,7 +138,7 @@ fn invalid_request_ends_session() {
     write_frame(&mut buf, &[200]).unwrap();
     write_frame(&mut buf, &Request::Ping { nonce: 1 }.encode()).unwrap();
     let mut output = Vec::new();
-    assert!(session::run(&mut Cursor::new(buf), &mut output).is_err());
+    assert!(session::run(&mut Cursor::new(buf), &mut output, &config()).is_err());
     let mut out = &output[..];
     read_frame(&mut out, MAX_FRAME).unwrap();
     let r = Response::decode(&read_frame(&mut out, MAX_FRAME).unwrap().unwrap()).unwrap();
@@ -133,7 +157,7 @@ fn oversized_request_is_rejected() {
     let mut buf = frames(Some(Hello::current()), &[]);
     buf.extend_from_slice(&((MAX_REQUEST_FRAME as u32) + 1).to_be_bytes());
     let mut output = Vec::new();
-    assert!(session::run(&mut Cursor::new(buf), &mut output).is_err());
+    assert!(session::run(&mut Cursor::new(buf), &mut output, &config()).is_err());
 }
 
 struct Broken;
@@ -152,7 +176,7 @@ fn write_error_ends_session() {
         Some(Hello::current()),
         &[Request::Ping { nonce: 1 }],
     ));
-    assert!(session::run(&mut input, &mut Broken).is_err());
+    assert!(session::run(&mut input, &mut Broken, &config()).is_err());
 }
 
 type WalkErrors = Vec<(Vec<u8>, String)>;
@@ -341,11 +365,25 @@ fn walk_rejects_invalid_requests() {
 }
 
 fn read(p: Vec<u8>, max: u64, extra: Vec<Vec<u8>>, metadata: bool) -> Result<Vec<u8>, ErrorKind> {
-    let (_, _, resp) = session(&[Request::ReadFile(ReadFileRequest {
-        path: p,
-        max_size: max,
-        sensitive: SensitivePolicy { extra, metadata },
-    })]);
+    read_in(&config(), p, max, extra, metadata)
+}
+
+fn read_in(
+    config: &Config,
+    p: Vec<u8>,
+    max: u64,
+    extra: Vec<Vec<u8>>,
+    metadata: bool,
+) -> Result<Vec<u8>, ErrorKind> {
+    let (_, _, resp) = session_in(
+        config,
+        Some(Hello::current()),
+        &[Request::ReadFile(ReadFileRequest {
+            path: p,
+            max_size: max,
+            sensitive: SensitivePolicy { extra, metadata },
+        })],
+    );
     let mut data = Vec::new();
     for r in resp {
         match r {
@@ -412,15 +450,16 @@ fn sensitive_content_is_never_sent() {
             Err(ErrorKind::Sensitive)
         );
     }
-    // Built-in paths, whatever the request says.
-    for p in [
-        "/etc/shadow",
-        "/etc/gshadow",
-        "/root/.ssh/authorized_keys",
-        "/etc/ssh/ssh_host_ed25519_key",
-    ] {
+    // Built-in patterns apply whatever the request says (no extra patterns,
+    // metadata opt-in). Which paths the real list holds is a unit test in
+    // sensitive.rs.
+    let builtin = Config {
+        sensitive: vec![t.bytes("secret"), t.bytes("sub/*.conf")],
+        ..config()
+    };
+    for p in ["secret/key", "sub/a.conf"] {
         assert_eq!(
-            read(p.as_bytes().to_vec(), u64::MAX, vec![], true),
+            read_in(&builtin, t.bytes(p), u64::MAX, vec![], true),
             Err(ErrorKind::Sensitive),
             "{p}"
         );
@@ -447,20 +486,38 @@ fn sensitive_content_is_never_sent() {
 }
 
 #[test]
-fn dpkg_status_missing_or_present() {
-    let (_, _, resp) = session(&[Request::DpkgStatus]);
-    let last = resp.last().unwrap();
-    if Path::new("/var/lib/dpkg/status").exists() {
-        assert_eq!(last, &Response::ChunkEnd);
-    } else {
-        assert!(matches!(
-            last,
-            Response::Error {
-                kind: ErrorKind::NotFound,
-                ..
-            }
-        ));
+fn dpkg_status() {
+    let t = TempDir::new("dpkg");
+    let status = b"Package: bash\nStatus: install ok installed\nVersion: 5.2\n\n".repeat(20_000);
+    std::fs::write(t.path("status"), &status).unwrap();
+    let present = Config {
+        dpkg_status: t.bytes("status"),
+        ..config()
+    };
+    let (_, _, resp) = session_in(&present, Some(Hello::current()), &[Request::DpkgStatus]);
+    let mut data = Vec::new();
+    for r in &resp[..resp.len() - 1] {
+        let Response::Chunk(b) = r else {
+            panic!("unexpected {r:?}")
+        };
+        data.extend_from_slice(b);
     }
+    assert_eq!(resp.last(), Some(&Response::ChunkEnd));
+    assert!(resp.len() > 2, "sent in chunks");
+    assert_eq!(data, status);
+
+    let missing = Config {
+        dpkg_status: t.bytes("missing"),
+        ..config()
+    };
+    let (_, _, resp) = session_in(&missing, Some(Hello::current()), &[Request::DpkgStatus]);
+    assert!(matches!(
+        resp[..],
+        [Response::Error {
+            kind: ErrorKind::NotFound,
+            ..
+        }]
+    ));
 }
 
 #[test]
@@ -526,21 +583,4 @@ fn hard_links_to_sensitive_files_are_sensitive() {
         read(t.bytes("innocent"), 100, vec![], false),
         Ok(b"hunter2".to_vec())
     );
-}
-
-#[test]
-fn pseudo_file_systems_are_never_read() {
-    // /proc/self is a symlink, so name the process directly.
-    let status = format!("/proc/{}/status", std::process::id()).into_bytes();
-    assert_eq!(
-        read(status.clone(), 1 << 20, vec![], false),
-        Err(ErrorKind::NotRegular)
-    );
-    let (entries, _, _) = walk(WalkRequest {
-        roots: vec![status],
-        hash: true,
-        max_hash_size: 1 << 20,
-        ..Default::default()
-    });
-    assert_eq!(entries[0].hash, HashState::PseudoFs);
 }
