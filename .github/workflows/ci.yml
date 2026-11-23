@@ -83,3 +83,14 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: target/${{ matrix.target }}/release/parity --version
 
+  e2e:
+    name: end-to-end tests (Debian 9 and 13 containers)
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target x86_64-unknown-linux-musl
+          rustup default stable
+      - name: run
+        run: tests/e2e/run.sh
