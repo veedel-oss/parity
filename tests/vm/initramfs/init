@@ -54,6 +54,9 @@ check "ping sudo" 0 "collect mode running" parity ping local
 check "packages" 0 "busybox-static" parity packages local
 check "compare config" 0 "Result: identical" parity compare --root /data a b
 check "compare filesystem" 0 "Result: identical" parity compare --check filesystem --exclude /tmp a b
+# Files on pseudo file systems are never read: reading /proc/kmsg as root
+# would block until the kernel logs something.
+check "pseudo fs never read" 0 "Result: identical" parity compare --check config --root /proc/kmsg a b
 
 # Reading never changes access times. touch sets atime = mtime, so relatime
 # would update the atime on a plain read.

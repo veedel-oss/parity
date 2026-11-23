@@ -210,6 +210,9 @@ for n in "${vms[@]}"; do
     # and /run on real kernel file systems (excluded by default, so check
     # they are not walked by exiting 0 or 1, never 2).
     check "filesystem $n" '[01]' "Result" --password testerpw -- compare --check filesystem "$n" "$n"
+    # Files on pseudo file systems are never read: reading /proc/kmsg as root
+    # would block until the kernel logs something.
+    check "pseudo fs never read $n" 0 "Result: identical" --password testerpw -- compare --check config --root /proc/kmsg "$n" "$n"
 done
 leftovers
 check "compare deb9 deb13" 1 "^Packages: [0-9]+ differences" --password testerpw -- compare deb9 deb13
