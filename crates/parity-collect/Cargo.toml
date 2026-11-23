@@ -7,3 +7,12 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
+
+# Every dependency here runs as root on the target. Each needs a reason.
+[dependencies]
+# Shared protocol types.
+parity-proto = { path = "../parity-proto", version = "0.1.0" }
+# System calls not in std: openat, fstatat, readlinkat, readdir, poll,
+# seteuid, fork, with the exact flags collect mode needs (O_NOATIME,
+# O_NOFOLLOW).
+libc = "0.2"
