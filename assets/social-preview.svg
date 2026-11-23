@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="Parity: compare two Linux machines">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2335"/>
+      <stop offset="1" stop-color="#0d121c"/>
+    </linearGradient>
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset="1" stop-color="#14b8a6"/>
+    </linearGradient>
+    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c4b5fd"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#bg)"/>
+
+  <!-- equals sign: two machines, identical state -->
+  <g>
+    <rect x="100" y="215" width="150" height="56" rx="28" fill="url(#teal)"/>
+    <rect x="266" y="215" width="150" height="56" rx="28" fill="url(#violet)"/>
+    <rect x="100" y="295" width="150" height="56" rx="28" fill="url(#teal)"/>
+    <rect x="266" y="295" width="150" height="56" rx="28" fill="url(#violet)"/>
+  </g>
+
+  <g font-family="Inter, 'DejaVu Sans', 'Segoe UI', Helvetica, Arial, sans-serif">
+    <text x="480" y="248" font-size="140" font-weight="700" letter-spacing="2">
+      <tspan fill="#ffffff">par</tspan><tspan fill="#5eead4">ity</tspan>
+    </text>
+    <text x="484" y="328" font-size="36" fill="#cbd5e1">Compare two Linux machines.</text>
+    <text x="484" y="375" font-size="36" fill="#cbd5e1">See exactly where they differ.</text>
+    <text x="484" y="440" font-size="30" font-style="italic" fill="#5eead4">Ob jleich oder nit, Parity weiß et.</text>
+    <text x="484" y="488" font-size="24" fill="#64748b">Single static binary · Rust · AGPL-3.0-or-later</text>
+  </g>
+</svg>

@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # Actions are pinned to commit SHAs in the workflows.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
+    # Wait before proposing a new release, so a compromised or yanked
+    # release is caught before it reaches a PR. Security updates are exempt.
+    # github-actions supports only default-days, not the semver-* keys.
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: daily
+    cooldown:
+      semver-patch-days: 7
+      semver-minor-days: 14
+      semver-major-days: 30
