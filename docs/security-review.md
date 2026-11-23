@@ -1,0 +1,30 @@
+# Security review of collect mode
+
+Review of `crates/parity-collect` and the parts of the binary and transport that lead to it, done on 2026-11-23 against the points of step 23 in `docs/plan.md`. Repeat it before every release and after every change to collect mode.
+
+## Result
+
+| Point | Status | Where it is enforced | Tested by |
+| --- | --- | --- | --- |
+| No CLI code reachable as root | ok | `crates/parity/src/main.rs` dispatches `collect` and `hold` before any parsing; `parity-collect` does not depend on `parity-analyze` (CI check) | CI boundary check |
+| Refuses to run without root | ok | `parity_collect::require_root` | unit test, e2e `none as non-root` |
+| Input validation | ok | `path::validate` (absolute, normalised, no NUL, max 4096 bytes); limits of 64 roots, 4096 excludes, 256 patterns; request frames max 1 MiB; decoders check lengths before allocating | `codec`, `message`, `path` unit tests, `walk_rejects_invalid_requests`, `oversized_request_is_rejected`, `truncated_messages_never_panic` |
+| Resource limits | ok | batches of at most 1000 entries, link targets at most 4096 bytes (a batch always fits in a frame), `ReadFile` at most 64 MiB, dpkg status at most 256 MiB, hard-link scan at most 20,000 paths | unit and session tests |
+| Symlinks | ok | step-by-step `openat` with `O_NOFOLLOW`; symlink components fail with `ELOOP`; link targets are read with `readlinkat`, never followed | `read_file_never_follows_symlinks`, `walk_root_through_symlink_is_refused`, walk test |
+| Special files | ok, fixed in this review | opened with `O_NONBLOCK`, checked with `fstat` after opening (a FIFO swapped in cannot block); devices are never opened; **files on pseudo file systems (proc, sysfs, debugfs, ...) are never read** (`sys::is_pseudo_fs`) | `pseudo_file_systems_are_never_read` |
+| No write path | ok | the only descriptors opened for writing are the holder's stdout and stderr, which must be pipes; no files are created; logs go to stderr | code review |
+| Access times unchanged | ok, fixed while building | `O_NOATIME` on everything that is read; directories only passed through use `O_PATH`; no fallback without `O_NOATIME` | `access_times_never_change` (with relatime an atime a year old would be updated by a plain read), e2e `access times unchanged` on the target |
+| Sensitive paths cannot be bypassed | ok, fixed in this review | built-in list always applies; `ReadFile` refuses sensitive paths whatever the request says; paths with `..`, `.`, `//` are rejected before opening; symlinks are not followed; **hard links to sensitive files are detected by device and inode** | `sensitive_content_is_never_sent`, `hard_links_to_sensitive_files_are_sensitive`, e2e `sensitive skipped` |
+| Attaching to the protocol session | ok | holder must run as the escalating user with uniform IDs and the exact command line `<path> hold <nonce>`; descriptors are opened with the holder's UID and GID and must be pipes; checks are repeated after opening; if switching back to root fails, the process exits | `attach` unit tests, e2e with sudo and su on Debian 9 and 13 |
+| Binary run as root | ok, fixed in this review | **the holder refuses if the binary or a directory above it can be changed by a third user** (owner not root or the user, or writable by others without sticky bit) | `hold` unit test, e2e `binary writable by others`, `binary owned by another user` |
+| No remote process left behind | ok, fixed while building | collect mode exits on end of input and on write errors and polls for a hangup while hashing large files; the holder exits on hangup | e2e `interrupt` (Ctrl-C while hashing 3 GB) and `leftovers` checks after every error case |
+| Oldest supported kernel | ok, fixed in this review | only system calls of Linux 3.2 (see `docs/architecture.md`); **attaching switches real and effective IDs**, because before Linux 4.5 `/proc/<pid>/fd` is checked against the real IDs | `tests/vm/run.sh`: Linux 3.2 (workspace tests as root, ping, packages, compare with sudo via stand-ins, access times), Debian 9 (Linux 4.9) and 13 VMs over real ssh, sudo and su |
+
+## Known limits
+
+- The sensitive list protects reports and terminals, it is not a boundary against the user, who is root-capable on the target anyway (see `docs/architecture.md`). An option lets that user add patterns and opt in to metadata and hashes; content is never sent.
+- A file swapped for a device node between `fstatat` and `openat` would be opened (not read: the `fstat` check after opening refuses it). Only root can create device nodes, so only the root-capable user could arrange this. Opening some devices has side effects (a tape rewinds), so this is noted here.
+- Hard-linked sensitive files are found by scanning the sensitive paths at the start of a request; a hard link created during the walk is not noticed. Unprivileged users cannot hard-link files they cannot read (`fs.protected_hardlinks`).
+- While collect mode opens the holder's descriptors, its real UID is the holder's user, so that user could signal it (for example kill it) for that moment. That user can end the session anyway. The saved UID stays 0 and the process is not dumpable after the switch, so the user cannot trace it.
+- Collect mode trusts `SUDO_UID` to name the escalating user. With su, the environment is the user's own, but whoever uses su knows the root password.
+- The holder check accepts group-writable directories, like sudo's `secure_path` does (Debian's `/usr/local/bin` is `root:staff` 2775, and `staff` is root-equivalent on Debian by design).
