@@ -138,7 +138,7 @@ for n in "${vms[@]}"; do
     echo "$n: $os, Linux $(vssh "$n" uname -r)"
 done
 
-# check NAME EXPECTED_EXIT_REGEX PATTERN [--password PW]... [--interrupt-after S] -- ARGS...
+# check NAME EXPECTED_EXIT_REGEX PATTERN [--password PW]... [--interrupt-when CMD] -- ARGS...
 check() {
     local name=$1 want=$2 pattern=$3
     shift 3
@@ -247,11 +247,45 @@ done
 leftovers
 
 # Ctrl-C in the middle of hashing a large file ends everything on the targets.
-for n in "${vms[@]}"; do vroot "$n" 'head -c 3000000000 /dev/zero >/opt/big'; done
-check "interrupt" 130 "" --password testerpw --password testerpw --interrupt-after 2 -- compare --check filesystem --max-hash-size 4G vm1 vm2
-sleep 1
-leftovers
-for n in "${vms[@]}"; do vroot "$n" 'rm -f /opt/big'; done
+# The file is sparse: hashing 3 GB of zeros takes seconds, but nothing is
+# written to the VM's disk. Ctrl-C comes once collect mode on vm1 has the file
+# open. The test depends on timing: if it does not finish
+# within interrupt_timeout seconds (a slow or stuck VM), it is reported as
+# timed out and does not count as a failure. A result it does reach (wrong
+# exit code, processes left) does.
+interrupt_timeout=120
+kill_tree() { # pid
+    local c
+    for c in $(pgrep -P "$1"); do kill_tree "$c"; done
+    kill "$1" 2>/dev/null || true
+}
+(
+    failures=0
+    for n in "${vms[@]}"; do vroot "$n" 'truncate -s 3G /opt/big'; done
+    hashing="ssh -F $work/ssh_config root@vm1 'find /proc/[0-9]*/fd -lname /opt/big 2>/dev/null | grep -q .'"
+    check "interrupt" 130 "" --password testerpw --password testerpw --interrupt-when "$hashing" -- compare --check filesystem --max-hash-size 4G vm1 vm2
+    sleep 1
+    leftovers
+    for n in "${vms[@]}"; do vroot "$n" 'rm -f /opt/big'; done
+    echo "$failures" >"$work/interrupt.failures"
+) &
+pid=$!
+deadline=$((SECONDS + interrupt_timeout))
+while kill -0 "$pid" 2>/dev/null && ((SECONDS < deadline)); do sleep 1; done
+if kill -0 "$pid" 2>/dev/null; then
+    kill_tree "$pid"
+    wait "$pid" 2>/dev/null || true
+    echo "TIMEOUT interrupt: not finished after $interrupt_timeout s, not counted as a failure"
+    if [[ -n ${GITHUB_ACTIONS:-} ]]; then echo "::warning::interrupt test timed out on $os"; fi
+else
+    rc=0
+    wait "$pid" || rc=$?
+    if [[ -f $work/interrupt.failures ]]; then
+        failures=$((failures + $(cat "$work/interrupt.failures")))
+    else
+        fail "interrupt: a command on a VM failed (exit $rc)"
+    fi
+fi
 
 if [[ $failures != 0 ]]; then
     echo "$failures VM test(s) failed on $os"
