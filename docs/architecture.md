@@ -105,7 +105,7 @@ Implemented in `parity-proto` without dependencies.
 
 ## Comparison
 
-- Packages: keyed by name and architecture; reported as only on one side, or with a different version or dpkg state. Packages in state `not-installed` are ignored.
+- Packages: read from the dpkg database, not by running dpkg on the target (collect mode runs no programs, and `dpkg-query` would change access times). The CLI requests `/var/lib/dpkg/status`, then walks `/var/lib/dpkg/updates` and reads its journal entries (files named only with digits, in name order); each record there replaces the package's record from the status database, as dpkg and `dpkg-query` apply pending entries after an interrupted run. Packages are keyed by name and architecture and reported as only on one side, or with a different version or `Status` field (want, error flag and state, so a package on hold on one side only is a difference). Packages in state `not-installed` are ignored. `parity packages` shows the status abbreviated as `dpkg -l` and `dpkg-query -f '${db:Status-Abbrev}'` do.
 - Files: both targets get the same roots, sorted and without nested roots, so both entry streams arrive in the same order and are merged like sorted lists. The CLI does not hold either tree in memory.
 - Compared per path: type, mode (including setuid, setgid, sticky), UID, GID, size (regular files), link target, device number, content hash (SHA-256, implemented in collect mode). Modification times are not compared by default, because they differ between any two installations; an option turns them on. Directory sizes are never compared.
 - A directory present on one side only is reported once, with the number of entries below it.

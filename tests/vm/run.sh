@@ -204,7 +204,7 @@ for n in "${vms[@]}"; do
     fi
     check "ping sudo $n" 0 "collect mode running" --password testerpw -- ping "$n"
     check "ping su $n" 0 "collect mode running" --password rootpw -- ping --become su "$n"
-    check "packages $n" 0 "^ +bash +amd64" --password testerpw -- packages "$n"
+    check "packages $n" 0 "^ *ii +bash +amd64" --password testerpw -- packages "$n"
     check "compare $n with itself" 0 "Result: identical" --password testerpw -- compare "$n" "$n"
     # The whole file system of a running system, including /proc, /sys, /dev
     # and /run on real kernel file systems (excluded by default, so check

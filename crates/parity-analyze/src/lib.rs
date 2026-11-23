@@ -256,14 +256,13 @@ fn run(cli: Cli) -> Result<i32> {
             target,
         } => {
             let mut c = Connection::open(&target, &conn.options())?;
-            let status = c.dpkg_status()?;
+            let list = c.dpkg_packages()?;
             c.close()?;
-            let Some(status) = status else {
+            let Some(list) = list else {
                 return Err(Error(format!(
                     "{target} has no dpkg database; package collection supports Debian-based systems only"
                 )));
             };
-            let list = packages::parse_status(&status);
             match format {
                 Format::Text => print!("{}", report::packages_text(&list)),
                 Format::Json => println!(
@@ -338,15 +337,12 @@ fn compare(a: CompareArgs) -> Result<i32> {
 
     let packages = if a.check.contains(&Check::Packages) {
         let (sa, sb) = std::thread::scope(|s| {
-            let h = s.spawn(|| ca.dpkg_status());
-            let sb = cb.dpkg_status();
+            let h = s.spawn(|| ca.dpkg_packages());
+            let sb = cb.dpkg_packages();
             (h.join().expect("thread panicked"), sb)
         });
         match (sa?, sb?) {
-            (Some(x), Some(y)) => Some(packages::compare(
-                &packages::parse_status(&x),
-                &packages::parse_status(&y),
-            )),
+            (Some(x), Some(y)) => Some(packages::compare(&x, &y)),
             (x, y) => {
                 let missing: Vec<&str> = [(x.is_none(), &targets[0]), (y.is_none(), &targets[1])]
                     .iter()

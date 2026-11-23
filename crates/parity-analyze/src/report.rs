@@ -139,28 +139,33 @@ fn text_packages(o: &mut String, p: &PackageDiff, a: &str, b: &str) {
         format!("{a} (a)"),
         format!("{b} (b)"),
     ]];
-    let show = |p: &Package| {
-        if p.state == "installed" {
-            p.version.clone()
-        } else {
-            format!("{} ({})", p.version, p.state)
-        }
+    let show = |version: &str, status: &crate::packages::Status| match status.note() {
+        None => version.to_string(),
+        Some(n) => format!("{version} ({n})"),
     };
     for x in &p.only_a {
-        rows.push(vec![x.name.clone(), x.arch.clone(), show(x), "-".into()]);
+        rows.push(vec![
+            x.name.clone(),
+            x.arch.clone(),
+            show(&x.version, &x.status),
+            "-".into(),
+        ]);
     }
     for x in &p.only_b {
-        rows.push(vec![x.name.clone(), x.arch.clone(), "-".into(), show(x)]);
+        rows.push(vec![
+            x.name.clone(),
+            x.arch.clone(),
+            "-".into(),
+            show(&x.version, &x.status),
+        ]);
     }
     for c in &p.changed {
-        let s = |v: &crate::packages::Side| {
-            if v.state == "installed" {
-                v.version.clone()
-            } else {
-                format!("{} ({})", v.version, v.state)
-            }
-        };
-        rows.push(vec![c.name.clone(), c.arch.clone(), s(&c.a), s(&c.b)]);
+        rows.push(vec![
+            c.name.clone(),
+            c.arch.clone(),
+            show(&c.a.version, &c.a.status),
+            show(&c.b.version, &c.b.status),
+        ]);
     }
     rows[1..].sort();
     table(o, &rows);
@@ -257,20 +262,21 @@ fn text_files(o: &mut String, f: &FileReport, a: &str, b: &str) {
     }
 }
 
-// Package list of one target.
+// Package list of one target, with the status abbreviated as `dpkg -l`
+// shows it.
 pub fn packages_text(list: &[Package]) -> String {
     let mut rows = vec![vec![
+        "STATUS".into(),
         "PACKAGE".into(),
         "ARCH".into(),
         "VERSION".into(),
-        "STATE".into(),
     ]];
     rows.extend(list.iter().map(|p| {
         vec![
+            p.status.abbrev(),
             p.name.clone(),
             p.arch.clone(),
             p.version.clone(),
-            p.state.clone(),
         ]
     }));
     let mut o = String::new();

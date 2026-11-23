@@ -112,12 +112,18 @@ check "binary owned by another user" 2 "can be changed by other users" -- ping -
 docker exec "$tag-deb13" rm -r /opt/open
 leftovers
 
-check "packages" 0 "^ +bash +amd64" --password testerpw -- packages deb13
+check "packages" 0 "^ *ii +bash +amd64" --password testerpw -- packages deb13
 check "compare deb9 deb13" 1 "^Packages: [0-9]+ differences" --password testerpw -- compare deb9 deb13
 check "content diff" 1 "^ +\+\+\+ deb13:/etc/adduser.conf" --password testerpw -- compare --check config deb9 deb13
 check "sensitive skipped" 1 "/etc/shadow: sensitive path" --password testerpw -- compare --check config deb9 deb13
 check "identical config" 0 "Result: identical" --password testerpw -- compare "${docker_excludes[@]}" deb13 deb13b
 check "identical filesystem" 0 '"result": "identical"' --password testerpw -- compare --check filesystem --format json "${docker_excludes[@]}" deb13 deb13b
+
+# A pending entry in dpkg's journal counts, as for dpkg-query: bash on hold.
+docker exec "$tag-deb13b" sh -c 'mkdir -p /var/lib/dpkg/updates && awk -v RS= -v ORS="\n\n" "/^Package: bash\n/" /var/lib/dpkg/status | sed "s/^Status: install ok installed/Status: hold ok installed/" >/var/lib/dpkg/updates/0000'
+check "journal packages" 0 "^ *hi +bash +amd64" --password testerpw -- packages deb13b
+check "journal compare" 1 "^ *bash +amd64 +[^ ]+ +[^ ]+ \(hold\)" --password testerpw -- compare --check packages deb13 deb13b
+docker exec "$tag-deb13b" rm /var/lib/dpkg/updates/0000
 
 docker exec "$tag-deb13b" sh -c 'echo extra >>/etc/adduser.conf; chmod 4755 /usr/bin/ls; mkdir -p /opt/app/lib; touch /opt/app/lib/x; chown 1000 /var/lib/dpkg/info/bash.list'
 check "config change" 1 "^ +\+extra" --password testerpw -- compare --check config "${docker_excludes[@]}" deb13 deb13b
