@@ -52,3 +52,34 @@ jobs:
           rustup default 1.85
       - name: cargo build
         run: cargo build --workspace --all-targets --locked
+
+  static:
+    name: static build ${{ matrix.target }}
+    runs-on: ubuntu-26.04
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+    env:
+      # No C code is linked, so the linker shipped with Rust is enough for
+      # every musl target.
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: rust-lld
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+          rustup default stable
+      - name: cargo build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: check static linking and size
+        run: |
+          bin=target/${{ matrix.target }}/release/parity
+          file "$bin"
+          file "$bin" | grep -q 'statically linked\|static-pie linked'
+          size=$(stat -c %s "$bin")
+          echo "size: $size bytes"
+          test "$size" -lt 5000000
+      - name: run on this runner
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: target/${{ matrix.target }}/release/parity --version
+
