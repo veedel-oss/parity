@@ -1,48 +1,45 @@
 #!/usr/bin/env bash
-# Tests on virtual machines with their own kernels (containers share the host
-# kernel, see tests/e2e):
+# System tests on virtual machines with their own kernels, over real ssh, sudo
+# and su. Everything only a real system can show is tested here.
 #
-# - Debian 9 (Linux 4.9) and Debian 13 cloud images: the static binary
-#   installed in /usr/local/bin, ping, packages and compare over real ssh with
-#   sudo and su, access times on ext4, and the workspace tests run as root.
-# - The Linux 3.2 kernel of Debian 7, the oldest supported kernel, booted
-#   with an initramfs that holds busybox, the static binary and the
-#   workspace tests (see initramfs/init).
+#   tests/vm/run.sh OS        OS: debian-10, debian-11, debian-12, debian-13
 #
-#   tests/vm/run.sh [all|linux-3.2|debian]
+# Boots two VMs from the latest cloud image of OS, installs the static binary
+# in /usr/local/bin and tests: ping, packages and compare with sudo, su and as
+# root; escalation and connection errors; checks of the installed binary; the
+# two fresh installs compare as identical and changes made to one show up;
+# dpkg's journal; access times on ext4; no process left behind after errors
+# and Ctrl-C; the workspace tests run as root.
 #
-# Needs docker with /dev/kvm, ssh, ssh-keygen, curl, sha256sum, sha512sum and
-# python3. Downloads are cached in ${XDG_CACHE_HOME:-~/.cache}/parity-vm and
-# checked against the checksums below.
+# Needs docker with /dev/kvm, ssh, ssh-keygen, curl and python3. The image is
+# cached in ${XDG_CACHE_HOME:-~/.cache}/parity-vm and downloaded again when the
+# one on the server is newer. Also run in CI.
 set -euo pipefail
-what=${1:-all}
-case $what in all | linux-3.2 | debian) ;; *) echo "usage: $0 [all|linux-3.2|debian]" >&2; exit 2 ;; esac
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
+. "$here/images.sh"
+os=${1:-}
+if [[ $# != 1 ]] || ! url=$(image_url "$os"); then
+    echo "usage: $0 OS (one of: ${oses[*]})" >&2
+    exit 2
+fi
 target=x86_64-unknown-linux-musl
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/parity-vm
 mkdir -p "$cache"
 
-deb9_url=https://cloud.debian.org/images/openstack/archive/9.13.41-20220629/debian-9.13.41-20220629-openstack-amd64.qcow2
-deb9_sha512=759f5360f397326664d55d910f09feaa95719999932122646851ebcae3ef14f64bcc65c1decbc5c11025f78cedba7bbcfb51222f661e9a5a4799e1c3129fc5b9
-deb13_url=https://cloud.debian.org/images/cloud/trixie/20261116-2664/debian-13-genericcloud-amd64-20261116-2664.qcow2
-deb13_sha512=37cb32b320820417eb04b335afcf489bfb4cecce4a957190d09cb2bffbe02b56a1cadd62d78c6ead92aa7839d5ea65e4260f994bbb4b54490df59fdf11ee1d97
-k32_url=http://archive.debian.org/debian/pool/main/l/linux/linux-image-3.2.0-4-amd64_3.2.78-1_amd64.deb
-k32_sha256=3083a848d7d2dcfe0dfd8f381d9a33cddab15c3407fee5657138b162ca473eea
-
-fetch() { # name url algorithm sum
-    local f=$cache/$1
-    if [[ ! -f $f ]] || ! echo "$4  $f" | "$3sum" -c --status; then
-        echo "downloading $2"
-        curl -fL --progress-bar -o "$f.part" "$2"
-        echo "$4  $f.part" | "$3sum" -c --status || { echo "checksum mismatch: $2"; exit 1; }
-        mv "$f.part" "$f"
-    fi
-}
-fetch deb9.qcow2 "$deb9_url" sha512 "$deb9_sha512"
-fetch deb13.qcow2 "$deb13_url" sha512 "$deb13_sha512"
-fetch linux-3.2.deb "$k32_url" sha256 "$k32_sha256"
+image=$os.qcow2
+rm -f "$cache/$image.part"
+if [[ -f $cache/$image ]]; then
+    curl -fsSL -R -z "$cache/$image" -o "$cache/$image.part" "$url"
+else
+    echo "downloading $url"
+    curl -fL -R --progress-bar -o "$cache/$image.part" "$url"
+fi
+if [[ -s $cache/$image.part ]]; then
+    mv "$cache/$image.part" "$cache/$image"
+fi
+rm -f "$cache/$image.part"
 
 cargo build --manifest-path "$root/Cargo.toml" --release --locked --target $target
 bin=$root/target/$target/release/parity
@@ -66,51 +63,15 @@ cleanup() {
 trap cleanup EXIT
 
 docker build -q -t parity-vm-runner "$here" >/dev/null
-runner=(docker run --rm --device /dev/kvm -v "$cache:/cache:ro" -v "$work:/work")
 
 failures=0
 fail() { echo "FAIL $*"; failures=$((failures + 1)); }
 
-# --- Linux 3.2 -------------------------------------------------------------
-
-if [[ $what != debian ]]; then
-mkdir -p "$work/initramfs/bin" "$work/initramfs/tests"
-cp "$here/initramfs/init" "$work/initramfs/"
-cp "$here/initramfs/ssh" "$here/initramfs/sudo" "$bin" "$work/initramfs/bin/"
-cp "${tests[@]}" "$work/initramfs/tests/"
-"${runner[@]}" parity-vm-runner sh -euc '
-    cd /work/initramfs
-    mkdir -p dev proc sys tmp root etc home/tester
-    cp /bin/busybox bin/
-    ln -s busybox bin/sh
-    chmod 755 init bin/* tests/*
-    mknod -m 600 dev/console c 5 1
-    printf "root:x:0:0::/root:/bin/sh\ntester:x:1000:1000::/home/tester:/bin/sh\n" >etc/passwd
-    printf "root:x:0:\ntester:x:1000:\n" >etc/group
-    chown -R 0:0 . && chown 1000:1000 home/tester && chmod 1777 tmp
-    find . | cpio -o -H newc --quiet | gzip >/work/initrd.gz
-    dpkg-deb -x /cache/linux-3.2.deb /work/k32
-    cp /work/k32/boot/vmlinuz-3.2.0-4-amd64 /work/vmlinuz-3.2'
-echo "booting Linux 3.2"
-containers+=("$tag-k32")
-timeout 1800 "${runner[@]}" --name "$tag-k32" parity-vm-runner qemu-system-x86_64 -enable-kvm -cpu host -m 2048 -smp 2 \
-    -kernel /work/vmlinuz-3.2 -initrd /work/initrd.gz -append "console=ttyS0 panic=-1 quiet" \
-    -display none -serial stdio -monitor none -no-reboot </dev/null | tr -d '\r' >"$work/k32.log" || true
-grep -E '^(VM-KERNEL|ok |FAIL|    )' "$work/k32.log" || true
-if ! grep -q '^VM-DONE failures=0$' "$work/k32.log"; then
-    grep -q '^VM-DONE' "$work/k32.log" || { echo "console output of the Linux 3.2 VM:"; tail -40 "$work/k32.log"; }
-    fail "Linux 3.2"
-fi
-fi
-
-# --- Debian 9 and 13 ---------------------------------------------------------
-
-if [[ $what != linux-3.2 ]]; then
 ssh-keygen -q -t ed25519 -N '' -f "$work/key"
 start() { # name image
     local n=$1
     mkdir -p "$work/seed-$n"
-    cat >"$work/seed-$n/user-data" <<EOF
+    cat >"$work/seed-$n/user-data" <<EOS
 #cloud-config
 users:
   - name: tester
@@ -119,12 +80,18 @@ users:
     lock_passwd: false
     ssh_authorized_keys:
       - $(cat "$work/key.pub")
+  - name: nosudo
+    shell: /bin/bash
+    lock_passwd: false
+    ssh_authorized_keys:
+      - $(cat "$work/key.pub")
 chpasswd:
   list: |
     tester:testerpw
+    nosudo:nosudopw
     root:rootpw
   expire: false
-EOF
+EOS
     echo "instance-id: $n" >"$work/seed-$n/meta-data"
     docker run -d --name "$tag-$n" --device /dev/kvm -v "$cache:/cache:ro" -v "$work:/work" \
         -p 127.0.0.1::2222 parity-vm-runner sh -euc "
@@ -137,7 +104,7 @@ EOF
     containers+=("$tag-$n")
     local port
     port=$(docker port "$tag-$n" 2222/tcp | head -1 | sed 's/.*://')
-    cat >>"$work/ssh_config" <<EOF
+    cat >>"$work/ssh_config" <<EOS
 Host $n
   HostName 127.0.0.1
   Port $port
@@ -148,13 +115,15 @@ Host $n
   UserKnownHostsFile /dev/null
   LogLevel ERROR
   ConnectTimeout 5
-EOF
+EOS
 }
-vms=(deb9 deb13)
-start deb9 deb9.qcow2
-start deb13 deb13.qcow2
+vms=(vm1 vm2)
+start vm1 "$image"
+start vm2 "$image"
 
 vssh() { ssh -F "$work/ssh_config" "$@"; }
+# Runs a shell command as root on a VM (root logs in with the test key).
+vroot() { ssh -F "$work/ssh_config" "root@$1" "$2"; }
 for n in "${vms[@]}"; do
     echo "waiting for $n"
     for _ in $(seq 120); do
@@ -165,11 +134,11 @@ for n in "${vms[@]}"; do
     vssh "$n" 'mkdir -p /tmp/parity-tests'
     scp -q -F "$work/ssh_config" "$bin" "$n:/tmp/parity"
     scp -q -F "$work/ssh_config" "${tests[@]}" "$n:/tmp/parity-tests/"
-    vssh "$n" 'echo testerpw | sudo -S -p "" install -o root -g root -m 0755 /tmp/parity /usr/local/bin/parity'
-    echo "$n: Linux $(vssh "$n" uname -r)"
+    vssh "$n" 'echo testerpw | sudo -S -p "" sh -c "install -o root -g root -m 0755 /tmp/parity /usr/local/bin/parity && install -o root -g root -m 0600 ~tester/.ssh/authorized_keys /root/.ssh/authorized_keys"'
+    echo "$n: $os, Linux $(vssh "$n" uname -r)"
 done
 
-# check NAME EXPECTED_EXIT_REGEX PATTERN [--password PW]... -- ARGS...
+# check NAME EXPECTED_EXIT_REGEX PATTERN [--password PW]... [--interrupt-after S] -- ARGS...
 check() {
     local name=$1 want=$2 pattern=$3
     shift 3
@@ -177,10 +146,10 @@ check() {
     while [[ $1 != -- ]]; do drive+=("$1"); shift; done
     shift
     local out rc=0
-    out=$(timeout 600 python3 "$root/tests/e2e/drive.py" "${drive[@]}" -- "$bin" "$1" --ssh-config "$work/ssh_config" "${@:2}" 2>&1) || rc=$?
+    out=$(timeout 600 python3 "$here/drive.py" "${drive[@]}" -- "$bin" "$1" --ssh-config "$work/ssh_config" "${@:2}" 2>&1) || rc=$?
     if [[ ! $rc =~ ^($want)$ ]] || ! grep -qE -- "$pattern" <<<"$out"; then
         fail "$name: exit $rc (want $want), pattern '$pattern'"
-        sed 's/^/    /' <<<"$out" | head -40
+        head -40 <<<"$out" | sed 's/^/    /'
     else
         echo "ok   $name"
     fi
@@ -196,36 +165,76 @@ leftovers() {
 }
 
 for n in "${vms[@]}"; do
-    if vssh "$n" 'echo testerpw | sudo -S -p "" sh -c "cd /tmp && for t in /tmp/parity-tests/*; do \$t -q --test-threads=1 || exit 1; done"' >"$work/tests-$n.log" 2>&1; then
+    if vroot "$n" 'cd /tmp && for t in /tmp/parity-tests/*; do $t -q --test-threads=1 || exit 1; done' >"$work/tests-$n.log" 2>&1; then
         echo "ok   tests as root $n"
     else
         fail "tests as root $n"
         tail -40 "$work/tests-$n.log" | sed 's/^/    /'
     fi
-    check "ping sudo $n" 0 "collect mode running" --password testerpw -- ping "$n"
-    check "ping su $n" 0 "collect mode running" --password rootpw -- ping --become su "$n"
-    check "packages $n" 0 "^ *ii +bash +amd64" --password testerpw -- packages "$n"
-    check "compare $n with itself" 0 "Result: identical" --password testerpw -- compare "$n" "$n"
-    # The whole file system of a running system, including /proc, /sys, /dev
-    # and /run on real kernel file systems (excluded by default, so check
-    # they are not walked by exiting 0 or 1, never 2).
-    check "filesystem $n" '[01]' "Result" --password testerpw -- compare --check filesystem "$n" "$n"
-    # Files on pseudo file systems are never read: reading /proc/kmsg as root
-    # would block until the kernel logs something.
-    check "pseudo fs never read $n" 0 "Result: identical" --password testerpw -- compare --check config --root /proc/kmsg "$n" "$n"
 done
+check "ping sudo" 0 "collect mode running" --password testerpw -- ping vm1
+check "ping su" 0 "collect mode running" --password rootpw -- ping --become su vm1
+check "ping none as root" 0 "collect mode running" -- ping --become none root@vm1
+check "packages" 0 "^ *ii +bash +amd64" --password testerpw -- packages vm1
+check "compare with itself" 0 "Result: identical" --password testerpw -- compare vm1 vm1
+# The whole file system of a running system, including /proc, /sys, /dev
+# and /run on real kernel file systems (excluded by default, so check they
+# are not walked by exiting 0 or 1, never 2).
+check "filesystem" '[01]' "Result" --password testerpw -- compare --check filesystem vm1 vm1
+# Files on pseudo file systems are never read: reading /proc/kmsg as root
+# would block until the kernel logs something.
+check "pseudo fs never read" 0 "Result: identical" --password testerpw -- compare --check config --root /proc/kmsg vm1 vm1
+
+# Escalation, connection and binary errors.
+check "none as non-root" 2 "not running as root" -- ping --become none vm1
+check "wrong password" 2 "escalation with sudo on vm1 failed" --password wrong -- ping vm1
+check "not in sudoers" 2 "escalation with sudo" --password nosudopw -- ping nosudo@vm1
+check "wrong su password" 2 "escalation with su" --password wrong -- ping --become su vm1
+check "binary not found" 2 "not found .*--remote-path" -- ping --remote-path /opt/none/parity vm1
+check "ssh failure" 2 "ssh to .* failed" -- ping --ssh-option Port=1 vm1
+check "option-like target" 2 "must not start with '-'" -- ping -- -oProxyCommand=x
+vroot vm1 'printf "#!/bin/sh\necho \"PARITY-HOLD 99 9.9.9 \$\$ 2f\"\n" >/usr/local/bin/parity-old && chmod 755 /usr/local/bin/parity-old'
+check "version mismatch before password" 2 "remote parity 9.9.9 \(protocol 99\)" -- ping --remote-path /usr/local/bin/parity-old vm1
+vroot vm1 'rm /usr/local/bin/parity-old'
+vroot vm1 'mkdir -m 777 /opt/open && cp /usr/local/bin/parity /opt/open/'
+check "binary writable by others" 2 "can be changed by other users" -- ping --remote-path /opt/open/parity vm1
+vroot vm1 'chown 1001 /opt/open/parity && chmod 755 /opt/open'
+check "binary owned by another user" 2 "can be changed by other users" -- ping --remote-path /opt/open/parity vm1
+vroot vm1 'rm -r /opt/open'
 leftovers
-check "compare deb9 deb13" 1 "^Packages: [0-9]+ differences" --password testerpw -- compare deb9 deb13
-check "content diff" 1 "^ +\+\+\+ deb13:/etc/adduser.conf" --password testerpw -- compare --check config deb9 deb13
+
+# Two fresh installs of the same image are identical apart from what any two
+# installations differ in (see docs/compare-with-base-install.md), the DHCP
+# lease (dhclient up to Debian 11) and sudo's lecture records, which the
+# checks above leave behind.
+fresh_excludes=(--exclude /etc/machine-id --exclude /etc/ssh --exclude /var/lib/cloud
+    --exclude /var/lib/dhcp --exclude /var/lib/sudo)
+check "identical config" 0 "Result: identical" --password testerpw -- compare "${fresh_excludes[@]}" vm1 vm2
+check "sensitive skipped" 0 "/etc/shadow: sensitive path" --password testerpw -- compare "${fresh_excludes[@]}" vm1 vm2
+check "identical filesystem" 0 '"result": "identical"' --password testerpw -- compare --check filesystem --format json "${fresh_excludes[@]}" vm1 vm2
+
+# A pending entry in dpkg's journal counts, as for dpkg-query: bash on hold.
+vroot vm2 'mkdir -p /var/lib/dpkg/updates && awk -v RS= -v ORS="\n\n" "/^Package: bash\n/" /var/lib/dpkg/status | sed "s/^Status: install ok installed/Status: hold ok installed/" >/var/lib/dpkg/updates/0000'
+check "journal packages" 0 "^ *hi +bash +amd64" --password testerpw -- packages vm2
+check "journal compare" 1 "^ *bash +amd64 +[^ ]+ +[^ ]+ \(hold\)" --password testerpw -- compare --check packages vm1 vm2
+vroot vm2 'rm /var/lib/dpkg/updates/0000'
+
+# Changes made to one of two fresh installs show up.
+vroot vm2 'echo extra >>/etc/adduser.conf; chmod 4755 /usr/bin/ls; mkdir -p /opt/app/lib; touch /opt/app/lib/x; chown 1000 /var/lib/dpkg/info/bash.list'
+check "content diff" 1 "^ +\+\+\+ vm2:/etc/adduser.conf" --password testerpw -- compare --check config "${fresh_excludes[@]}" vm1 vm2
+check "config change" 1 "^ +\+extra" --password testerpw -- compare --check config "${fresh_excludes[@]}" vm1 vm2
+check "filesystem mode change" 1 "mode: 0755 -> 4755" --password testerpw -- compare --check filesystem "${fresh_excludes[@]}" vm1 vm2
+check "filesystem new tree" 1 "only on vm2 +directory +app \(and 2 entries below\)" --password testerpw -- compare --check filesystem "${fresh_excludes[@]}" vm1 vm2
+check "filesystem owner change" 1 "uid: 0 -> 1000" --password testerpw -- compare --check filesystem "${fresh_excludes[@]}" vm1 vm2
 
 # Reading never changes access times on ext4 with relatime.
 files="/etc /etc/adduser.conf /etc/debian_version /usr/share/doc /var/lib/dpkg/status"
 declare -A before
 for n in "${vms[@]}"; do
-    vssh "$n" "echo testerpw | sudo -S -p '' touch -a -d 2020-01-01 $files"
+    vroot "$n" "touch -a -d 2020-01-01 $files"
     before[$n]=$(vssh "$n" stat -c "'%X %n'" $files)
 done
-check "compare for atime" 1 "Result" --password testerpw -- compare deb9 deb13
+check "compare for atime" 1 "Result" --password testerpw -- compare vm1 vm2
 for n in "${vms[@]}"; do
     after=$(vssh "$n" stat -c "'%X %n'" $files)
     if [[ ${before[$n]} != "$after" ]]; then
@@ -236,10 +245,16 @@ for n in "${vms[@]}"; do
     fi
 done
 leftovers
-fi
+
+# Ctrl-C in the middle of hashing a large file ends everything on the targets.
+for n in "${vms[@]}"; do vroot "$n" 'head -c 3000000000 /dev/zero >/opt/big'; done
+check "interrupt" 130 "" --password testerpw --password testerpw --interrupt-after 2 -- compare --check filesystem --max-hash-size 4G vm1 vm2
+sleep 1
+leftovers
+for n in "${vms[@]}"; do vroot "$n" 'rm -f /opt/big'; done
 
 if [[ $failures != 0 ]]; then
-    echo "$failures VM test(s) failed"
+    echo "$failures VM test(s) failed on $os"
     exit 1
 fi
-echo "all VM tests passed"
+echo "all VM tests passed on $os"

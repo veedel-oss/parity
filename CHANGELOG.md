@@ -11,4 +11,4 @@ First release. Command and option names may still change before it is tagged.
 - Privilege escalation on the targets with sudo (default), su or none (`--become`). The password is typed on your terminal and goes to sudo or su directly; Parity never sees it.
 - Read-only on the targets: no files written, access times unchanged, symlinks never followed, pseudo file systems never read.
 - Sensitive paths such as `/etc/shadow` and SSH host keys are compared by type, mode, owner and group only; their content is never sent. Add paths with `--sensitive`.
-- One static binary for x86_64 and aarch64 Linux, built against musl. Tested on targets with Linux 3.2 (the oldest supported kernel), 4.9 (Debian 9) and 6.12 (Debian 13).
+- One static binary for x86_64 and aarch64 Linux, built against musl. Supported and tested targets: Debian 10, 11, 12 and 13 (Linux 4.19 to 6.12).

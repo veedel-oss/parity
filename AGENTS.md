@@ -34,7 +34,7 @@ One binary, `parity`, with the subcommands `compare` (CLI) and `collect` (collec
 - Prefer calling the system `ssh` binary over embedding an SSH library, so the user's ssh config and agent apply.
 - No company-specific data, host names, IPs or configuration anywhere in the repository, including tests and git history.
 - All code is written from scratch for this repository.
-- Tests never depend on the system that runs them. Unit tests are pure: pass in what they need (paths, UIDs, metadata, file system types) or mock it. Integration tests in `crates/*/tests` only touch fixtures they create; collect mode takes the paths it reads on its own (dpkg database, built-in sensitive list) from `session::Config`. What only a real system can show (kernel behaviour, access times, `/proc`) belongs in `tests/e2e` and `tests/vm`.
+- Tests never depend on the system that runs them. Unit tests are pure: pass in what they need (paths, UIDs, metadata, file system types) or mock it. Integration tests in `crates/*/tests` only touch fixtures they create; collect mode takes the paths it reads on its own (dpkg database, built-in sensitive list) from `session::Config`. What only a real system can show (kernel behaviour, access times, `/proc`) belongs in `tests/vm`.
 - Command and option names in the README are still placeholders. Ask before fixing them.
 - Tick off steps in `docs/plan.md` as they are done. When a milestone is complete, delete it from the plan and move any lasting decisions into `docs/architecture.md`.
 

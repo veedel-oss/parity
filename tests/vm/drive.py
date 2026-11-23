@@ -7,6 +7,9 @@ goes to the terminal, as it would from a keyboard, never to Parity.
     drive.py [--password PW]... [--interrupt-after SECONDS] -- COMMAND...
 
 Each password prompt gets the next password; the last one is repeated.
+--interrupt-after counts from the moment every given password has been typed
+(from the start if none is given), so Ctrl-C reaches the comparison, not the
+escalation.
 Prints everything the command wrote and exits with its exit code (130 if it
 was interrupted).
 """
@@ -41,7 +44,7 @@ def main():
     seen = 0
     asked = 0
     while True:
-        if interrupt is not None and time.monotonic() - start > interrupt:
+        if interrupt is not None and asked >= len(passwords) and time.monotonic() - start > interrupt:
             # Ctrl-C on the terminal: SIGINT to the foreground process group.
             os.write(fd, b"\x03")
             interrupt = None
@@ -64,6 +67,8 @@ def main():
                 seen = len(out)
                 time.sleep(0.2)
                 os.write(fd, pw)
+                if asked == len(passwords):
+                    start = time.monotonic()
         elif time.monotonic() - start > 300:
             os.kill(pid, signal.SIGKILL)
             break

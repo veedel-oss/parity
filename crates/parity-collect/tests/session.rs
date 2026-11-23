@@ -5,8 +5,7 @@
 //! fixtures they create, and the paths collect mode reads on its own (the
 //! dpkg database, the built-in sensitive list) are replaced by fixtures
 //! through [`session::Config`]. What only a real target can show (access
-//! times on its file systems, `/proc`) is tested in `tests/e2e` and
-//! `tests/vm`.
+//! times on its file systems, `/proc`) is tested in `tests/vm`.
 
 use std::io::{self, Cursor, Write};
 use std::os::unix::fs::symlink;

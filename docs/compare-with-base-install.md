@@ -44,4 +44,4 @@ Expected differences between any two installations: SSH host keys (sensitive, sk
 
 ## Tested
 
-`tests/e2e/run.sh` runs this workflow: it compares a fresh Debian 13 container with a copy in which a configuration file was changed, a mode and an owner were changed and a directory tree was added, and checks that exactly these show up. It also checks that two fresh installs compare as identical (exit code 0).
+`tests/vm/run.sh` runs this workflow: for each tested Debian release it compares a fresh VM with a second one from the same image in which a configuration file was changed, a mode and an owner were changed and a directory tree was added, and checks that exactly these show up. It also checks that two fresh installs compare as identical (exit code 0).

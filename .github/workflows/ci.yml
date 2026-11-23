@@ -83,14 +83,37 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: target/${{ matrix.target }}/release/parity --version
 
-  e2e:
-    name: end-to-end tests (Debian 9 and 13 containers)
+  vm:
+    name: system tests ${{ matrix.os }}
     runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [debian-10, debian-11, debian-12, debian-13]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Rust
         run: |
           rustup toolchain install stable --profile minimal --target x86_64-unknown-linux-musl
           rustup default stable
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      # The cache key changes when a new image is published.
+      - name: Image version
+        id: image
+        run: |
+          . tests/vm/images.sh
+          url=$(image_url ${{ matrix.os }})
+          modified=$(curl -fsSIL "$url" | tr -d '\r' | sed -n 's/^last-modified: //Ip' | tail -1)
+          echo "version=$(echo "$url $modified" | sha256sum | cut -c1-16)" >>"$GITHUB_OUTPUT"
+      - name: Cache image
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/parity-vm
+          key: parity-vm-${{ matrix.os }}-${{ steps.image.outputs.version }}
       - name: run
-        run: tests/e2e/run.sh
+        run: tests/vm/run.sh ${{ matrix.os }}
