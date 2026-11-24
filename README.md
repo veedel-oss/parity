@@ -2,7 +2,9 @@
 
 <img alt="Parity logo" width="128" src="./assets/logo.svg">
 
-Parity compares two Linux machines and shows where they differ, from files and config to packages. A single static binary, read-only on the systems it inspects. Ob jleich oder nit, Parity weiß et.
+Parity compares two Linux machines and shows where they differ, from files and config to packages. A single static binary, read-only on the systems it inspects.
+
+Kölsche Aussprache: *Ob jleich oder nit, Parity weiß et.*
 
 ## Why Parity?
 
