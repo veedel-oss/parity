@@ -14,7 +14,7 @@ Steps 21 to 23 are complete; their decisions are in `docs/architecture.md` (Deci
 - [x] 25. Rulesets, setup GitHub Rulesets
 - [x] 26. Repository and organisation settings, set by the maintainer: the maintainer is the only organisation owner, the base permission gives members no write access, nobody else has write, maintain or admin access to the repository, two-factor authentication is required, Actions allows only actions created by GitHub and requires full-length commit SHAs, the default `GITHUB_TOKEN` is read-only and cannot create or approve pull requests, workflows from fork pull requests of external contributors need approval, releases are immutable, and Dependabot alerts and security updates, Secret Protection (secret scanning and push protection) and private vulnerability reporting are enabled. The workflows fit these settings: only `actions/*`, each pinned to a full commit SHA, and write access only in the release job.
 - [x] 27. `release.yml` in two jobs: a build job with read-only permissions and `persist-credentials: false`, and a release job with write permissions that runs no code of the project or its dependencies and creates the release as a draft. (Since the repository is public: the release job runs in the environment `release`, set up by the maintainer, and attests the build provenance of the binary with `actions/attest`. See `docs/architecture.md`, Builds.)
-- [ ] 28. Pin the Rust toolchain of the release build, so it changes only with a commit.
+- [x] 28. Pin the Rust toolchain of the release build, so it changes only with a commit. (`rust-toolchain.toml`, for all builds, not only the release; see `docs/architecture.md`, Builds.)
 - [ ] 29. Signed checksums: the maintainer signs `SHA256SUMS` with their GPG key and attaches `SHA256SUMS.asc` to the draft before publishing it. The README and the release notes say how to verify a download.
 
 ## Later
@@ -24,7 +24,7 @@ Steps 21 to 23 are complete; their decisions are in `docs/architecture.md` (Deci
 - Comparison against a saved snapshot instead of two live machines.
 - Export of differences as Ansible or Terraform code.
 - Smarter hashing on very large file systems (hash only files whose size matches on both sides, or in a second pass).
-- Run the aarch64 build in CI on an arm runner, then release it.
+- aarch64: build it, run the e2e tests on an arm runner, then release it.
 
 ## Open questions
 

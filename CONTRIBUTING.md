@@ -41,11 +41,13 @@ Additions to the built-in list of sensitive paths (`crates/parity-collect/src/se
 
 ## Development setup
 
-You need Linux and Rust 1.85 or newer (the minimum supported version; CI also builds with it). For the static release binary, add the musl target:
+You need Linux, [rustup](https://rustup.rs) and a C compiler such as `gcc`, which Rust uses as the linker. `rust-toolchain.toml` pins the Rust version that every build uses, in CI, for releases and locally. rustup installs it together with rustfmt, clippy and the musl target the first time you run `cargo` in the repository, or ahead of time with:
 
 ```bash
-rustup target add x86_64-unknown-linux-musl
+rustup toolchain install
 ```
+
+The code must also build with Rust 1.85, the minimum supported version (`rust-version` in `Cargo.toml`). CI checks that with `cargo +1.85 build --workspace --all-targets --locked`.
 
 The checks CI runs on every pull request:
 

@@ -11,6 +11,14 @@ updates:
     cooldown:
       default-days: 7
 
+  # The Rust version in rust-toolchain.toml.
+  - package-ecosystem: rust-toolchain
+    directory: /
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
+
   - package-ecosystem: cargo
     directory: /
     schedule:

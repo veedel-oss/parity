@@ -111,8 +111,9 @@ download_image() {
 # Builds the workspace tests for the static target without running them and
 # prints the path of each test executable, one per line.
 test_executables() {
-    cargo test --manifest-path "$root/Cargo.toml" --workspace --locked \
-        --target $target --no-run --message-format=json 2>/dev/null |
+    # From the workspace root, so rust-toolchain.toml applies.
+    (cd "$root" && cargo test --workspace --locked \
+        --target $target --no-run --message-format=json 2>/dev/null) |
         python3 -c '
 import json, sys
 for line in sys.stdin:
@@ -348,7 +349,8 @@ mkdir -p "$cache"
 image=$os.qcow2
 download_image "$url" "$cache/$image"
 
-cargo build --manifest-path "$root/Cargo.toml" --release --locked --target $target
+# From the workspace root, so rust-toolchain.toml applies.
+(cd "$root" && cargo build --release --locked --target $target)
 bin=$root/target/$target/release/parity
 mapfile -t tests < <(test_executables)
 
