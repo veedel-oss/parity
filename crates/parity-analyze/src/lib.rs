@@ -166,8 +166,8 @@ struct CompareArgs {
     /// Directories for --check etc instead of /etc and /usr/local/etc, comma separated
     #[arg(long = "etc-dirs", value_name = "PATHS", value_delimiter = ',', action = ArgAction::Set)]
     etc_dirs: Vec<String>,
-    /// Path to leave out, with everything below it, may be repeated
-    #[arg(long = "exclude", value_name = "PATH")]
+    /// Path to leave out, with everything below it (`*` matches within a name), may be repeated
+    #[arg(long = "exclude", value_name = "PATTERN")]
     excludes: Vec<String>,
     /// Do not apply the default excludes of --check filesystem
     #[arg(long)]

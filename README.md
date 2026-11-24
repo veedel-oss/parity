@@ -64,7 +64,7 @@ parity compare --become su host-a host-b
 | --- | --- |
 | `--check LIST` | What to compare, comma separated: `packages`, `etc`, `filesystem`. Default: `packages,etc` |
 | `--etc-dirs PATHS` | Directories for `etc` instead of `/etc` and `/usr/local/etc`, comma separated |
-| `--exclude PATH` | Leave out a path and everything below it, may be repeated |
+| `--exclude PATTERN` | Leave out a path and everything below it (`*` matches within a name, as in `/var/lib/*/tmp`), may be repeated |
 | `--no-default-excludes` | Also compare `/proc`, `/tmp`, caches, logs and the other default excludes of `filesystem` |
 | `--sensitive PATTERN` | Treat more paths as sensitive (`*` matches within a name), may be repeated |
 | `--reveal-sensitive-metadata` | Also report size, modification time, link target and hash of sensitive paths. Their content is never sent |

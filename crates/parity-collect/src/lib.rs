@@ -11,6 +11,7 @@ mod attach;
 mod fs;
 pub mod hold;
 mod path;
+mod pattern;
 pub mod sensitive;
 pub mod session;
 mod sys;

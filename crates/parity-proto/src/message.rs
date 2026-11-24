@@ -66,6 +66,7 @@ pub struct WalkRequest {
     // Absolute paths to walk.
     pub roots: Vec<Vec<u8>>,
     // Absolute paths that are skipped together with everything below them.
+    // `*` matches any run of bytes within one component.
     pub excludes: Vec<Vec<u8>>,
     // Hash regular files up to `max_hash_size` bytes.
     pub hash: bool,

@@ -8,6 +8,7 @@ use parity_proto::{Entry, ErrorKind, FileKind, HashState, Response, WalkRequest}
 use sha2::{Digest, Sha256};
 
 use crate::fs::{self, OpenError};
+use crate::pattern::{self, Pattern};
 use crate::sensitive::Sensitive;
 use crate::{path, sys};
 
@@ -28,18 +29,22 @@ pub fn walk(
     closed: fn() -> bool,
     out: &mut Sink,
 ) -> io::Result<()> {
-    if let Err(message) = check(req) {
-        return out(Response::Error {
-            kind: ErrorKind::InvalidRequest,
-            message,
-        });
-    }
+    let excludes = match check(req) {
+        Ok(x) => x,
+        Err(message) => {
+            return out(Response::Error {
+                kind: ErrorKind::InvalidRequest,
+                message,
+            });
+        }
+    };
     let batch_size = match req.batch_size {
         0 => DEFAULT_BATCH,
         n => n.min(MAX_BATCH),
     } as usize;
     let mut w = Walker {
         req,
+        excludes,
         sensitive,
         batch: Vec::with_capacity(batch_size),
         batch_size,
@@ -53,21 +58,24 @@ pub fn walk(
     (w.out)(Response::WalkEnd)
 }
 
-fn check(req: &WalkRequest) -> Result<(), String> {
+// Checks the limits and paths of a request and returns its excludes as
+// patterns.
+fn check(req: &WalkRequest) -> Result<Vec<Pattern>, String> {
     if req.roots.len() > MAX_ROOTS {
         return Err(format!("more than {MAX_ROOTS} roots"));
     }
     if req.excludes.len() > MAX_EXCLUDES {
         return Err(format!("more than {MAX_EXCLUDES} excludes"));
     }
-    for p in req.roots.iter().chain(&req.excludes) {
+    for p in &req.roots {
         path::validate(p)?;
     }
-    Ok(())
+    req.excludes.iter().map(|p| Pattern::new(p)).collect()
 }
 
 struct Walker<'a, 'b> {
     req: &'a WalkRequest,
+    excludes: Vec<Pattern>,
     sensitive: &'a Sensitive,
     batch: Vec<Entry>,
     batch_size: usize,
@@ -77,7 +85,7 @@ struct Walker<'a, 'b> {
 
 impl Walker<'_, '_> {
     fn excluded(&self, p: &[u8]) -> bool {
-        self.req.excludes.iter().any(|x| path::is_within(p, x))
+        pattern::any_covers(&self.excludes, p)
     }
 
     fn flush(&mut self) -> io::Result<()> {

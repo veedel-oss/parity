@@ -28,4 +28,4 @@ Milestones 1 (end-to-end skeleton), 2 (comparison of packages), 3 (comparison of
 - Whether the CLI may copy the binary to the target for one run, or the binary must be installed beforehand.
 - Which CPU architectures get a release build, and how the right binary for a target is chosen.
 - The name: `parity` is taken on crates.io.
-- Whether the matching of sensitive-path patterns (`*` within one component, `crates/parity-collect/src/sensitive.rs`) should also come from a well-known library such as `globset`, following the rule in `AGENTS.md` that security-relevant algorithms are never our own. It is the last such piece written here; against it speaks the size of that dependency in collect mode, which runs as root.
+- Whether the matching of path patterns for sensitive paths and excludes (`*` within one component, `crates/parity-collect/src/pattern.rs`) should also come from a well-known library such as `globset`, following the rule in `AGENTS.md` that security-relevant algorithms are never our own. It is the last such piece written here; against it speaks the size of that dependency in collect mode, which runs as root.

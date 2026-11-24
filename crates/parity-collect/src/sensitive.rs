@@ -2,9 +2,8 @@
 //! mode, owner and group, unless the CLI opts in to more metadata. Their
 //! content is never sent.
 //!
-//! A pattern is an absolute path whose components may contain `*`, matching
-//! any run of characters within one component. A path is sensitive if it
-//! matches a pattern or lies below a path that does.
+//! A path is sensitive if one of the patterns covers it, that is if it
+//! matches a pattern or lies below a path that does (see [`crate::pattern`]).
 //!
 //! A hard link elsewhere to a sensitive file is sensitive too: when the list
 //! is built, collect mode notes device and inode of every sensitive regular
@@ -17,6 +16,7 @@
 use std::collections::HashSet;
 use std::os::fd::AsRawFd;
 
+use crate::pattern::{self, Pattern, glob};
 use crate::{fs, path, sys};
 
 // Built in, always applied. Extra patterns from the CLI only add to it.
@@ -57,7 +57,7 @@ pub fn builtin() -> Vec<Vec<u8>> {
 }
 
 pub struct Sensitive {
-    patterns: Vec<Vec<Vec<u8>>>,
+    patterns: Vec<Pattern>,
     // Device and inode of sensitive regular files with more than one link.
     linked: HashSet<(u64, u64)>,
 }
@@ -78,8 +78,7 @@ impl Sensitive {
         }
         let mut patterns = Vec::new();
         for p in builtin.iter().chain(extra) {
-            path::validate(p).map_err(|e| format!("invalid sensitive pattern: {e}"))?;
-            patterns.push(path::components(p).map(<[u8]>::to_vec).collect());
+            patterns.push(Pattern::new(p).map_err(|e| format!("invalid sensitive pattern: {e}"))?);
         }
         Ok(Sensitive {
             patterns,
@@ -88,10 +87,7 @@ impl Sensitive {
     }
 
     pub fn matches(&self, p: &[u8]) -> bool {
-        let comps: Vec<&[u8]> = path::components(p).collect();
-        self.patterns
-            .iter()
-            .any(|pat| pat.len() <= comps.len() && pat.iter().zip(&comps).all(|(g, c)| glob(g, c)))
+        pattern::any_covers(&self.patterns, p)
     }
 
     // Whether a file is a hard link of a sensitive file.
@@ -105,7 +101,7 @@ impl Sensitive {
         for pat in &self.patterns {
             // Expand the pattern component by component.
             let mut paths = vec![b"/".to_vec()];
-            for comp in pat {
+            for comp in pat.components() {
                 let mut next = Vec::new();
                 for p in &paths {
                     if comp.contains(&b'*') {
@@ -168,42 +164,9 @@ fn note_tree(p: &[u8], linked: &mut HashSet<(u64, u64)>, budget: &mut usize) {
     }
 }
 
-// Matches `name` against `pat`, where `*` matches any run of bytes.
-fn glob(pat: &[u8], name: &[u8]) -> bool {
-    let (mut p, mut n) = (0, 0);
-    let mut star: Option<(usize, usize)> = None;
-    while n < name.len() {
-        if p < pat.len() && pat[p] == b'*' {
-            star = Some((p, n));
-            p += 1;
-        } else if p < pat.len() && pat[p] == name[n] {
-            p += 1;
-            n += 1;
-        } else if let Some((sp, sn)) = star {
-            p = sp + 1;
-            n = sn + 1;
-            star = Some((sp, sn + 1));
-        } else {
-            return false;
-        }
-    }
-    pat[p..].iter().all(|&b| b == b'*')
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn globbing() {
-        assert!(glob(b"ssh_host_*_key", b"ssh_host_ed25519_key"));
-        assert!(!glob(b"ssh_host_*_key", b"ssh_host_ed25519_key.pub"));
-        assert!(glob(b"*", b""));
-        assert!(glob(b"a*b*c", b"aXXbYYc"));
-        assert!(!glob(b"a*b*c", b"aXXbYY"));
-        assert!(glob(b"exact", b"exact"));
-        assert!(!glob(b"exact", b"exactly"));
-    }
 
     #[test]
     fn builtin_patterns() {

@@ -293,6 +293,38 @@ fn walk_reports_metadata_hashes_and_links() {
 }
 
 #[test]
+fn walk_excludes_patterns() {
+    let t = TempDir::new("exclude-patterns");
+    for d in ["lib/app/tmp", "lib/db/tmp", "lib/db/data", "lib/tmpfiles"] {
+        std::fs::create_dir_all(t.path(d)).unwrap();
+        std::fs::write(t.path(&format!("{d}/f")), b"").unwrap();
+    }
+    let (entries, errors, _) = walk(WalkRequest {
+        roots: vec![t.bytes("")],
+        excludes: vec![t.bytes("lib/*/tmp"), t.bytes("lib/d*/data/f")],
+        ..Default::default()
+    });
+    assert!(errors.is_empty(), "{errors:?}");
+    let mut paths: Vec<String> = entries
+        .iter()
+        .map(|e| String::from_utf8_lossy(&e.path[t.bytes("").len()..]).into_owned())
+        .collect();
+    paths.sort();
+    assert_eq!(
+        paths,
+        [
+            "",
+            "/lib",
+            "/lib/app",
+            "/lib/db",
+            "/lib/db/data",
+            "/lib/tmpfiles",
+            "/lib/tmpfiles/f"
+        ]
+    );
+}
+
+#[test]
 fn walk_streams_in_batches() {
     let t = TempDir::new("batches");
     for i in 0..25 {

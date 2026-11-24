@@ -31,14 +31,6 @@ pub fn components(p: &[u8]) -> impl Iterator<Item = &[u8]> {
     p[1..].split(|&b| b == b'/').filter(|c| !c.is_empty())
 }
 
-// Whether `path` is `prefix` or lies below it. Both must be validated.
-pub fn is_within(path: &[u8], prefix: &[u8]) -> bool {
-    if prefix == b"/" {
-        return true;
-    }
-    path.starts_with(prefix) && (path.len() == prefix.len() || path[prefix.len()] == b'/')
-}
-
 pub fn join(parent: &[u8], name: &[u8]) -> Vec<u8> {
     let mut p = Vec::with_capacity(parent.len() + 1 + name.len());
     p.extend_from_slice(parent);
@@ -82,14 +74,6 @@ mod tests {
             assert!(validate(p).is_err(), "{p:?}");
         }
         assert!(validate(&[b'/'; MAX_PATH + 1]).is_err());
-    }
-
-    #[test]
-    fn within() {
-        assert!(is_within(b"/etc", b"/etc"));
-        assert!(is_within(b"/etc/x", b"/etc"));
-        assert!(!is_within(b"/etcx", b"/etc"));
-        assert!(is_within(b"/etc", b"/"));
     }
 
     #[test]

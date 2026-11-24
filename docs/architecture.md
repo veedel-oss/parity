@@ -100,7 +100,8 @@ Implemented in `parity-proto` without dependencies.
 - Files are opened with `O_NONBLOCK` and checked with `fstat` after opening, so a FIFO swapped in after the `stat` cannot block the walk.
 - Files on pseudo file systems (proc, sysfs, debugfs, tracefs, securityfs, cgroup, bpf, pstore, configfs, efivarfs, devpts and similar, detected with `fstatfs`) are never read: reading them can block (`/proc/kmsg`) or have side effects. The walk still lists them, with the hash state "pseudo file system".
 - The walk is depth first with the names of each directory in byte order, one open descriptor per level (the soft limit of open files is raised to the hard limit for this process). Link targets longer than 4096 bytes are refused, so a batch always fits in a frame.
-- Sensitive paths: the built-in list is in `crates/parity-collect/src/sensitive.rs`. Patterns may contain `*` within one component; everything below a matching path is sensitive. A hard link elsewhere to a sensitive file is sensitive too: collect mode notes device and inode of all sensitive regular files with more than one link (scanning at most 20,000 paths) and checks entries with more than one link against them.
+- Patterns: sensitive paths and excludes are patterns (`crates/parity-collect/src/pattern.rs`). A pattern is a path whose components may contain `*`, matching any run of bytes within one component; it covers the paths that match it and everything below them.
+- Sensitive paths: the built-in list is in `crates/parity-collect/src/sensitive.rs`. A hard link elsewhere to a sensitive file is sensitive too: collect mode notes device and inode of all sensitive regular files with more than one link (scanning at most 20,000 paths) and checks entries with more than one link against them.
 - Collect mode needs these system calls, all present in Linux 3.2: `openat`, `newfstatat`, `fstat`, `fstatfs`, `readlinkat`, `getdents64`, `poll`, `fcntl`, `getrlimit`/`setrlimit`, `setresgid`/`setresuid`, `fork`, `setsid`, `dup2`.
 
 ## Comparison
@@ -121,7 +122,7 @@ Fixed for the first release (decided 2026-11-24). Renaming or removing a command
 
 - Commands: `parity compare [OPTIONS] <a> <b>`, `parity packages [OPTIONS] <target>`, `parity ping [OPTIONS] <target>`. `collect` and `hold` are internal and do not appear in the help.
 - On all three commands: `--become sudo|su|none` (default `sudo`), `--parity-path PATH` (default `parity`), `--ssh-config FILE` and `--ssh-option OPTION` (repeatable), passed on to ssh as `-F` and `-o`. `compare` and `packages` also take `--format text|json`.
-- `compare` only: `--check` (comma separated `packages`, `etc`, `filesystem`; default `packages,etc`), `--etc-dirs PATHS`, `--exclude PATH` (repeatable), `--no-default-excludes`, `--sensitive PATTERN` (repeatable), `--reveal-sensitive-metadata`, `--max-hash-size SIZE`, `--max-diff-size SIZE`, `--no-diff`, `--with-mtime`.
+- `compare` only: `--check` (comma separated `packages`, `etc`, `filesystem`; default `packages,etc`), `--etc-dirs PATHS`, `--exclude PATTERN` (repeatable), `--no-default-excludes`, `--sensitive PATTERN` (repeatable), `--reveal-sensitive-metadata`, `--max-hash-size SIZE`, `--max-diff-size SIZE`, `--no-diff`, `--with-mtime`.
 - No short options. They can be added later without breaking anything, but once released they can never be removed.
 - `--etc-dirs` belongs to `--check etc` and is named after it. It takes one comma separated list and may be given only once, so a path containing a comma cannot be given. Without `etc` in `--check` it is an error, not silently ignored.
 - The opt-in that reports metadata of sensitive paths says in its name that it discloses something (`--reveal-sensitive-metadata`), because a size or hash can give away a small secret.
