@@ -6,8 +6,8 @@ Milestones 1 (end-to-end skeleton), 2 (comparison of packages), 3 (comparison of
 
 ## Milestone 5: Release preparation
 
-- [x] 21. Release builds for the chosen CPU architectures, size check of the binary. (x86_64 and aarch64 musl, about 1.2 MB and 1.0 MB, CI limit 5 MB. Which architectures get released is still open. The aarch64 binary is built but not yet run anywhere.)
-- [ ] 22. Finalise command and option names and update the README (they are placeholders today).
+- [x] 21. Release builds for the chosen CPU architectures, size check of the binary. (x86_64 and aarch64 musl, CI checks a size limit. Which architectures get released is still open. The aarch64 binary is built but not yet run anywhere.)
+- [x] 22. Finalise command and option names and update the README. (Names and the reasons for them in `docs/architecture.md`, Command line.)
 - [x] 23. Security review of collect mode: input validation, resource limits, behaviour with symlinks and special files, no write path anywhere, no changed access times (`O_NOATIME` everywhere, test that atime stays unchanged), the sensitive-path list and that no request can bypass it, no CLI code reachable as root, no remote process left behind after an interrupted run, a test run on the oldest supported kernel.
   (Review in `docs/security-review.md`, with the fixes it led to and tests; e2e tests in `tests/e2e/run.sh`.)
 - [ ] 24. Check that the crate names and the binary name are free (crates.io, common distributions), release notes, first tagged release.

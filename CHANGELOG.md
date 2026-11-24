@@ -2,9 +2,9 @@
 
 ## Unreleased (draft notes for 0.1.0)
 
-First release. Command and option names may still change before it is tagged.
+First release.
 
-- `parity compare <a> <b>` compares two Linux machines over SSH: installed Debian packages, configuration directories (`/etc`, `/usr/local/etc` or `--root`) including unified diffs of changed text files, and with `--check filesystem` the whole file system.
+- `parity compare <a> <b>` compares two Linux machines over SSH: installed Debian packages, configuration directories (`/etc` and `/usr/local/etc`, or `--etc-dirs`) including unified diffs of changed text files, and with `--check filesystem` the whole file system.
 - Reports as a table grouped by directory, or as JSON with `--format json`. Exit codes: 0 identical, 1 different, 2 error.
 - Packages are read from the dpkg database including pending journal entries (`/var/lib/dpkg/updates`), as `dpkg-query` sees them; version, architecture and the full status (for example a package on hold) are compared.
 - `parity packages <target>` lists installed Debian packages with their status as `dpkg -l` abbreviates it, `parity ping <target>` checks that collect mode starts.

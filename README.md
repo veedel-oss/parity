@@ -40,14 +40,48 @@ Each target only needs the `parity` binary, a running SSH server and sudo or su.
 ```bash
 # on your workstation; parity is installed on both targets
 parity compare host-a ssh://user@host-b:2222
+```
 
-# use su instead of sudo on the targets
+Targets are ssh destinations (`host`, `user@host` or `ssh://[user@]host[:port]`), so host aliases, users, ports and jump hosts from your `~/.ssh/config` apply.
+
+By default, `parity compare` compares the installed packages and the configuration directories `/etc` and `/usr/local/etc`, with a diff for every text file whose content differs. `--check` selects what to compare:
+
+```bash
+# packages and the whole file system (without /proc, /sys, /dev, /run, temporary files, caches and logs)
+parity compare --check packages,filesystem host-a host-b
+
+# other configuration directories
+parity compare --check etc --etc-dirs /etc,/opt/app/etc host-a host-b
+
+# leave out paths that always differ
+parity compare --exclude /etc/hostname --exclude /etc/machine-id host-a host-b
+
+# su instead of sudo on the targets
 parity compare --become su host-a host-b
 ```
 
-Targets are ssh destinations, so host aliases, users and ports from your `~/.ssh/config` apply.
+| Option | Meaning |
+| --- | --- |
+| `--check LIST` | What to compare, comma separated: `packages`, `etc`, `filesystem`. Default: `packages,etc` |
+| `--etc-dirs PATHS` | Directories for `etc` instead of `/etc` and `/usr/local/etc`, comma separated |
+| `--exclude PATH` | Leave out a path and everything below it, may be repeated |
+| `--no-default-excludes` | Also compare `/proc`, `/tmp`, caches, logs and the other default excludes of `filesystem` |
+| `--sensitive PATTERN` | Treat more paths as sensitive (`*` matches within a name), may be repeated |
+| `--reveal-sensitive-metadata` | Also report size, modification time, link target and hash of sensitive paths. Their content is never sent |
+| `--max-hash-size SIZE` | Larger files are compared by metadata only. Default: `64M` |
+| `--max-diff-size SIZE` | Larger files get no content diff. Default: `1M` |
+| `--no-diff` | No content diffs |
+| `--with-mtime` | Also report differing modification times |
+| `--format json` | JSON for scripts instead of the report |
+| `--become METHOD` | How to become root on the targets: `sudo` (default), `su`, or `none` if you log in as root |
+| `--parity-path PATH` | Path of `parity` on the targets. Default: `parity` from the SSH user's `PATH` |
+| `--ssh-config FILE`, `--ssh-option OPTION` | Passed on to ssh as `-F` and `-o` |
 
-The command and option names are placeholders. The final options will follow with the first release.
+Exit codes of `parity compare`, as with `diff`: 0 identical, 1 differences found, 2 error (the comparison could not be completed).
+
+`parity ping <target>` checks that Parity starts on a target and answers. `parity packages <target>` lists the installed packages of one target. Both take the `--become`, `--parity-path` and ssh options. `parity <command> --help` shows all options.
+
+To find out what was added or changed on a system compared with a fresh install of its release, see [Comparing a system with a fresh install](docs/compare-with-base-install.md).
 
 ## Roadmap
 

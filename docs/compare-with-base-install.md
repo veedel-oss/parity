@@ -1,6 +1,6 @@
 # Comparing a system with a fresh install of its release
 
-Use this to find out what was added or changed on a legacy or manually set up machine, for example before describing it as infrastructure as code. Command and option names are working names until the first release.
+Use this to find out what was added or changed on a legacy or manually set up machine, for example before describing it as infrastructure as code.
 
 ## 1. Set up the base
 
@@ -36,7 +36,7 @@ For scripts, `--format json` prints the same result as JSON. The exit code is 0 
 
 - **Packages**: packages only on the system were installed on top of the base. A different version usually means the system is not up to date, or the base is newer; update both or compare against a base from the same point release.
 - **Files only on the system**: added configuration, local scripts, data. A directory that exists on one side only is shown once, with the number of entries below it.
-- **Changed files**: type, mode, owner, group, size, link target and content are compared. Text files get a unified diff. Modification times are not compared unless you add `--compare-mtime`.
+- **Changed files**: type, mode, owner, group, size, link target and content are compared. Text files get a unified diff. Modification times are not compared unless you add `--with-mtime`.
 - **Skipped on purpose**: sensitive paths such as `/etc/shadow` or SSH host keys are compared by type, mode, owner and group only. Their content never leaves the machine. Files above the hash size limit (`--max-hash-size`, default 64M) are compared by metadata only.
 - Owners and groups are compared as numeric UIDs and GIDs. System users created in a different order get different numbers and show up as differences.
 

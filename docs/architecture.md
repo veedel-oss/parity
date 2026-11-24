@@ -12,13 +12,13 @@ Root privileges exist on a target only while one run lasts, and they are granted
 
 ## Components
 
-There is exactly one binary, `parity`. Its roles are subcommands (working names):
+There is exactly one binary, `parity`. Its roles are subcommands:
 
 - `parity compare <target> <target>`: the CLI, run by the user on the workstation.
 - `parity collect`: collect mode, started by the CLI over SSH on a target. Not meant to be run by hand.
 - `parity hold <nonce>`: unprivileged helper on the target for escalated sessions (see Connection model). Not meant to be run by hand.
 
-The CLI also has `parity packages <target>` (list installed packages) and `parity ping <target>` (check that collect mode starts). All command and option names are working names until the first release.
+The CLI also has `parity packages <target>` (list installed packages) and `parity ping <target>` (check that collect mode starts). The commands and options are listed under Command line.
 
 Internally the binary is built from separate crates (Rust libraries, not separate programs) with clear boundaries:
 
@@ -33,7 +33,7 @@ Boundary rules: `parity-collect` and `parity-analyze` never depend on each other
 
 The CLI uses the system's `ssh` binary, so the user's keys, agent, password, ssh config and jump hosts apply. Authentication, encryption and host verification come from SSH. Collect mode handles one session: it reads requests until the end of input or an explicit end request, answers each, and exits. It also exits when writing to stdout fails, so it never outlives the SSH session. No SSH port forwarding is needed. This fails only if the SSH user is restricted to fixed commands (for example by ForceCommand).
 
-Privilege escalation (working name of the option `--become`):
+Privilege escalation (option `--become`):
 
 - `sudo` is the default.
 - `su` with a password prompt, for systems without sudo (su is part of every Debian installation).
@@ -52,7 +52,7 @@ How the prompt and the protocol share one SSH connection (decided after prototyp
 - The holder refuses to start if a third user could replace the binary that is about to run as root: the binary and every directory above it must belong to root or the SSH user and must not be writable by others (sticky directories excepted). Group write is accepted, because Debian ships `/usr/local/bin` as `root:staff` 2775 and sudo's `secure_path` trusts it the same way.
 - When the session ends or the CLI is interrupted, ssh closes the pipes: collect mode sees end of input or a write error and exits (during a walk it also polls stdout for a hangup after every entry and every 16 MiB while hashing, and ends the walk), the holder sees the hangup and exits. Nothing stays behind, the e2e tests check this after Ctrl-C in the middle of hashing a 16 GB file.
 
-Remote path: the CLI runs `parity` from the SSH user's `PATH` by default (the holder is started that way) and has an option for a different remote path (working name `--remote-path`). The escalated command uses the absolute path the holder reports, so sudo's `secure_path` and su's environment do not matter and the same binary runs in both sessions. A missing binary is therefore always detected in the unprivileged session (exit code 126 or 127), and the CLI points to `--remote-path`.
+Remote path: the CLI runs `parity` from the SSH user's `PATH` by default (the holder is started that way) and has an option for a different path (`--parity-path`). The escalated command uses the absolute path the holder reports, so sudo's `secure_path` and su's environment do not matter and the same binary runs in both sessions. A missing binary is therefore always detected in the unprivileged session (exit code 126 or 127), and the CLI points to `--parity-path`.
 
 Version check: the first message of every session carries the protocol version, in an encoding that never changes. With escalation the holder line carries it too, so a mismatch is reported before the password prompt. If the versions of the CLI and the remote binary do not match, the CLI stops with a clear error naming both versions.
 
@@ -110,14 +110,27 @@ Implemented in `parity-proto` without dependencies.
 - Compared per path: type, mode (including setuid, setgid, sticky), UID, GID, size (regular files), link target, device number, content hash (SHA-256, with the `sha2` crate). Modification times are not compared by default, because they differ between any two installations; an option turns them on. Directory sizes are never compared.
 - A directory present on one side only is reported once, with the number of entries below it.
 - Content diffs: only for regular files whose hashes differ, which are not sensitive and not larger than the diff size limit on either side. Contents are fetched in groups of 64 files from both targets in parallel. Text (valid UTF-8 without NUL bytes) gets a unified diff, anything else is reported as binary.
-- Default roots of the configuration comparison: `/etc` and `/usr/local/etc`. The file system comparison walks `/` with default excludes for virtual and runtime file systems, temporary files, caches and logs (`/dev`, `/lost+found`, `/media`, `/mnt`, `/proc`, `/run`, `/sys`, `/tmp`, `/var/cache`, `/var/lib/apt/lists`, `/var/log`, `/var/tmp`); an option turns them off.
+- Default roots of the configuration comparison (`--check etc`): `/etc` and `/usr/local/etc`, replaced by `--etc-dirs`. The file system comparison walks `/` with default excludes for virtual and runtime file systems, temporary files, caches and logs (`/dev`, `/lost+found`, `/media`, `/mnt`, `/proc`, `/run`, `/sys`, `/tmp`, `/var/cache`, `/var/lib/apt/lists`, `/var/log`, `/var/tmp`); an option turns them off.
 - Hashing on large file systems: every regular file up to the hash size limit (default 64 MiB) is hashed in one pass while walking; larger files are compared by metadata and listed as skipped. A smarter strategy (hash only where sizes match, or in a second pass) is possible later without protocol changes beyond a flag.
 - Errors for single paths (for example an I/O error while hashing) are listed and make the exit code 2, since the comparison is then incomplete. Vanished files are ignored.
 - Output: a report grouped by directory for people, JSON for scripts (`--format json`, paths converted lossily to UTF-8).
 
+## Command line
+
+Fixed for the first release (decided 2026-11-24). Renaming or removing a command or option breaks the scripts that use it.
+
+- Commands: `parity compare [OPTIONS] <a> <b>`, `parity packages [OPTIONS] <target>`, `parity ping [OPTIONS] <target>`. `collect` and `hold` are internal and do not appear in the help.
+- On all three commands: `--become sudo|su|none` (default `sudo`), `--parity-path PATH` (default `parity`), `--ssh-config FILE` and `--ssh-option OPTION` (repeatable), passed on to ssh as `-F` and `-o`. `compare` and `packages` also take `--format text|json`.
+- `compare` only: `--check` (comma separated `packages`, `etc`, `filesystem`; default `packages,etc`), `--etc-dirs PATHS`, `--exclude PATH` (repeatable), `--no-default-excludes`, `--sensitive PATTERN` (repeatable), `--reveal-sensitive-metadata`, `--max-hash-size SIZE`, `--max-diff-size SIZE`, `--no-diff`, `--with-mtime`.
+- No short options. They can be added later without breaking anything, but once released they can never be removed.
+- `--etc-dirs` belongs to `--check etc` and is named after it. It takes one comma separated list and may be given only once, so a path containing a comma cannot be given. Without `etc` in `--check` it is an error, not silently ignored.
+- The opt-in that reports metadata of sensitive paths says in its name that it discloses something (`--reveal-sensitive-metadata`), because a size or hash can give away a small secret.
+- `--parity-path` follows rsync's `--rsync-path`. If the binary is renamed (see Open points), the option is renamed with it.
+- `--with-mtime`, not `--compare-mtime`, so the option does not repeat the command.
+
 ## Builds
 
-- Static release builds for `x86_64-unknown-linux-musl` (about 1.2 MB) and `aarch64-unknown-linux-musl` (about 1.0 MB), both linked with `rust-lld`, no C toolchain needed. CI checks static linking and a size limit of 5 MB.
+- Static release builds for `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`, both linked with `rust-lld`, no C toolchain needed. CI checks static linking and a size limit of 5 MB.
 - Minimum kernel: the Rust documentation states no separate minimum for the musl targets (musl 1.2.5 is linked in). The Rust standard library's baseline is the one stated for the gnu targets: Linux 3.2 for x86_64, Linux 4.1 for aarch64. Collect mode uses only system calls available on these.
 - The e2e tests (`tests/e2e/run.sh OS`, needs KVM, also in CI on GitHub's runners as one job per OS) run on virtual machines with their own kernels. The OS is one of `debian-10`, `debian-11`, `debian-12`, `debian-13`; nothing else is tested. Each run boots two VMs from the latest genericcloud image of that release from cloud.debian.org (the `latest` folder, no checksum check; cached and downloaded again when the server has a newer one) with the binary in `/usr/local/bin`, over real ssh with sudo, su and as root. They cover escalation and connection errors, the checks of the installed binary, the two fresh installs comparing as identical and changes to one showing up, dpkg's journal, access times on ext4, no process left behind after errors and Ctrl-C, and the workspace tests as root. Older kernels down to 3.2 are kept working by using only their system calls, not by tests. There are no container tests: containers share the host kernel, so VMs cover everything they would.
 
@@ -125,6 +138,5 @@ Implemented in `parity-proto` without dependencies.
 
 - How the binary gets onto the target: installed beforehand (current assumption) or copied for one run (which would write to the target).
 - Which CPU architectures get a release build (x86_64 and aarch64 build today), and how the right binary for a target is chosen.
-- Final command line options and option names.
 - Package state collection beyond Debian.
 - The binary name `parity` may clash with other tools of that name. Checked 2026-11-23: the crate name `parity` on crates.io is taken (an unrelated small crate), `parity-collect`, `parity-analyze` and `parity-proto` are free. Repology lists no distribution package named `parity`, only `parity-git` in the AUR (the discontinued Parity Ethereum client, whose binary was also called `parity`). Decide on a name or a crates.io name (for example publishing the binary crate under another name) before the first release.

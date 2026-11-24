@@ -54,7 +54,7 @@ impl Become {
 pub struct SshOptions {
     pub become_: Become,
     // Path or command name of `parity` on the target.
-    pub remote_path: String,
+    pub parity_path: String,
     // Passed to ssh as `-F`.
     pub ssh_config: Option<PathBuf>,
     // Passed to ssh as `-o`.
@@ -67,7 +67,7 @@ impl Default for SshOptions {
     fn default() -> Self {
         SshOptions {
             become_: Become::Sudo,
-            remote_path: "parity".into(),
+            parity_path: "parity".into(),
             ssh_config: None,
             ssh_options: Vec::new(),
             ssh_program: "ssh".into(),
@@ -90,9 +90,9 @@ pub fn validate_target(t: &str) -> Result<()> {
     Ok(())
 }
 
-fn validate_remote_path(p: &str) -> Result<()> {
+fn validate_parity_path(p: &str) -> Result<()> {
     if p.is_empty() || p.starts_with('-') || p.chars().any(|c| c.is_control()) {
-        bail!("invalid remote path {p:?}");
+        bail!("invalid --parity-path {p:?}");
     }
     Ok(())
 }
@@ -285,7 +285,7 @@ impl Connection {
     // password prompt (if any) appears on the terminal.
     pub fn open(target: &str, opts: &SshOptions) -> Result<Connection> {
         validate_target(target)?;
-        validate_remote_path(&opts.remote_path)?;
+        validate_parity_path(&opts.parity_path)?;
         match opts.become_ {
             Become::None => Self::open_direct(target, opts),
             b => Self::open_escalated(target, opts, b),
@@ -332,7 +332,7 @@ impl Connection {
     }
 
     fn open_direct(target: &str, opts: &SshOptions) -> Result<Connection> {
-        let remote = format!("{} collect", sh_quote(&opts.remote_path));
+        let remote = format!("{} collect", sh_quote(&opts.parity_path));
         let args = ssh_args(opts, &[OsStr::new("-T")], target, &remote);
         let child = Self::spawn(target, opts, args)?;
         let mut c = Self::from_child(target, opts, child, None);
@@ -343,7 +343,7 @@ impl Connection {
     fn open_escalated(target: &str, opts: &SshOptions, b: Become) -> Result<Connection> {
         let control = ControlPath::new()?;
         let nonce = random_token(32)?;
-        let remote = format!("{} hold {nonce}", sh_quote(&opts.remote_path));
+        let remote = format!("{} hold {nonce}", sh_quote(&opts.parity_path));
         let ctl = control.path.clone().into_os_string();
         let extra: [&OsStr; 6] = [
             OsStr::new("-T"),
@@ -527,8 +527,8 @@ pub fn classify_exit(
             "ssh to {target} failed (exit status 255); see ssh's message above"
         )),
         Some(126 | 127) => Error(format!(
-            "parity not found or not executable on {target} as '{}'; install it there (for example in /usr/local/bin) or point to it with --remote-path",
-            opts.remote_path
+            "parity not found or not executable on {target} as '{}'; install it there (for example in /usr/local/bin) or point to it with --parity-path",
+            opts.parity_path
         )),
         Some(1) if text.contains("must run as root") => Error(format!(
             "collect mode on {target} is not running as root; use --become sudo or --become su, or log in as root"
@@ -643,7 +643,7 @@ mod tests {
         assert!(
             classify_exit("h", &o, st(127), &[])
                 .0
-                .contains("--remote-path")
+                .contains("--parity-path")
         );
         assert!(
             classify_exit("h", &o, st(255), &[])

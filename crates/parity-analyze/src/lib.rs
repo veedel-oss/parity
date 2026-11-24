@@ -1,12 +1,13 @@
 //! CLI side: SSH, privilege escalation, comparison and reports. Runs without
 //! special privileges on the workstation.
 //!
-//! Command and option names are working names until the first release.
+//! The command line is described in `docs/architecture.md` (Command line).
+//! Renaming or removing a command or option breaks scripts that use it.
 
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use parity_proto::SensitivePolicy;
 
 pub mod client;
@@ -21,8 +22,8 @@ use files::FileOptions;
 use report::{EXIT_ERROR, Report};
 use ssh::{Become, Connection, SshOptions};
 
-// Configuration directories compared by default.
-pub const DEFAULT_CONFIG_ROOTS: &[&str] = &["/etc", "/usr/local/etc"];
+// Directories of --check etc, unless --etc-dirs replaces them.
+pub const DEFAULT_ETC_DIRS: &[&str] = &["/etc", "/usr/local/etc"];
 
 // Excluded by default when comparing the whole file system: virtual and
 // runtime file systems, temporary files, caches and logs.
@@ -90,62 +91,68 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    // Compare two targets
+    /// Compare two targets
     Compare(CompareArgs),
-    // List the installed Debian packages of one target
+    /// List the installed Debian packages of one target
     Packages {
         #[command(flatten)]
         conn: ConnArgs,
+        /// Output format
         #[arg(long, value_enum, default_value = "text")]
         format: Format,
-        // ssh destination: host, user@host or ssh://[user@]host[:port]
+        /// ssh destination: host, user@host or ssh://[user@]host[:port]
         target: String,
     },
-    // Check that collect mode starts on a target and answers
+    /// Check that collect mode starts on a target and answers
     Ping {
         #[command(flatten)]
         conn: ConnArgs,
-        // ssh destination: host, user@host or ssh://[user@]host[:port]
+        /// ssh destination: host, user@host or ssh://[user@]host[:port]
         target: String,
     },
 }
 
 #[derive(Args)]
 struct ConnArgs {
-    // How to become root on the targets
+    /// How to become root on the targets
     #[arg(long = "become", value_enum, default_value = "sudo")]
     become_: BecomeArg,
-    // Path of parity on the targets
+    /// Path of parity on the targets, or a command name looked up in the SSH user's PATH
     #[arg(long, value_name = "PATH", default_value = "parity")]
-    remote_path: String,
-    // ssh configuration file (passed to ssh as -F)
+    parity_path: String,
+    /// ssh configuration file (passed to ssh as -F)
     #[arg(long, value_name = "FILE")]
     ssh_config: Option<PathBuf>,
-    // ssh option (passed to ssh as -o), may be repeated
+    /// ssh option (passed to ssh as -o), may be repeated
     #[arg(long = "ssh-option", value_name = "OPTION")]
     ssh_options: Vec<String>,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
 enum BecomeArg {
+    /// sudo, asking for the SSH user's password if sudo needs one
     Sudo,
+    /// su, asking for root's password
     Su,
+    /// No escalation, the SSH user is root
     None,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum Format {
+    /// Report for people
     Text,
+    /// JSON for scripts
     Json,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum Check {
-    // Installed Debian packages
+    /// Installed Debian packages
     Packages,
-    // Configuration directories (/etc, /usr/local/etc or --root)
-    Config,
-    // The whole file system
+    /// Configuration directories: /etc and /usr/local/etc, or --etc-dirs
+    Etc,
+    /// The whole file system, except the default excludes (see --no-default-excludes)
     Filesystem,
 }
 
@@ -153,41 +160,42 @@ enum Check {
 struct CompareArgs {
     #[command(flatten)]
     conn: ConnArgs,
-    // What to compare, comma separated
-    #[arg(long, value_enum, value_delimiter = ',', default_values = ["packages", "config"])]
+    /// What to compare, comma separated
+    #[arg(long, value_enum, value_delimiter = ',', default_values = ["packages", "etc"])]
     check: Vec<Check>,
-    // Configuration directory to compare instead of the defaults, may be repeated
-    #[arg(long = "root", value_name = "PATH")]
-    roots: Vec<String>,
-    // Path to leave out, with everything below it, may be repeated
+    /// Directories for --check etc instead of /etc and /usr/local/etc, comma separated
+    #[arg(long = "etc-dirs", value_name = "PATHS", value_delimiter = ',', action = ArgAction::Set)]
+    etc_dirs: Vec<String>,
+    /// Path to leave out, with everything below it, may be repeated
     #[arg(long = "exclude", value_name = "PATH")]
     excludes: Vec<String>,
-    // Do not apply the default excludes of the file system comparison
+    /// Do not apply the default excludes of --check filesystem
     #[arg(long)]
     no_default_excludes: bool,
-    // Further sensitive path (`*` matches within a name), may be repeated
+    /// Further sensitive path (`*` matches within a name), may be repeated
     #[arg(long = "sensitive", value_name = "PATTERN")]
     sensitive: Vec<String>,
-    // Also report size, time, link target and hash of sensitive paths (never their content)
+    /// Also report size, modification time, link target and hash of sensitive paths (never their content)
     #[arg(long)]
-    sensitive_metadata: bool,
-    // Files larger than this are not hashed (suffixes K, M, G)
+    reveal_sensitive_metadata: bool,
+    /// Files larger than this are not hashed (suffixes K, M, G)
     #[arg(long, value_name = "SIZE", default_value = "64M", value_parser = parse_size)]
     max_hash_size: u64,
-    // Files larger than this get no content diff (suffixes K, M, G)
+    /// Files larger than this get no content diff (suffixes K, M, G)
     #[arg(long, value_name = "SIZE", default_value = "1M", value_parser = parse_size)]
     max_diff_size: u64,
-    // Do not fetch contents for diffs
+    /// Do not fetch file contents for diffs
     #[arg(long)]
     no_diff: bool,
-    // Also report differing modification times
+    /// Also report differing modification times
     #[arg(long)]
-    compare_mtime: bool,
+    with_mtime: bool,
+    /// Output format
     #[arg(long, value_enum, default_value = "text")]
     format: Format,
-    // First target (ssh destination)
+    /// First target, an ssh destination: host, user@host or ssh://[user@]host[:port]
     target_a: String,
-    // Second target (ssh destination)
+    /// Second target, an ssh destination
     target_b: String,
 }
 
@@ -212,7 +220,7 @@ impl ConnArgs {
                 BecomeArg::Su => Become::Su,
                 BecomeArg::None => Become::None,
             },
-            remote_path: self.remote_path.clone(),
+            parity_path: self.parity_path.clone(),
             ssh_config: self.ssh_config.clone(),
             ssh_options: self.ssh_options.clone(),
             ssh_program: "ssh".into(),
@@ -277,19 +285,23 @@ fn run(cli: Cli) -> Result<i32> {
 }
 
 fn file_options(a: &CompareArgs) -> Result<Option<FileOptions>> {
+    let etc = a.check.contains(&Check::Etc);
     let fs = a.check.contains(&Check::Filesystem);
-    if !fs && !a.check.contains(&Check::Config) {
+    if !a.etc_dirs.is_empty() && !etc {
+        return Err(Error("--etc-dirs needs etc in --check".into()));
+    }
+    if !fs && !etc {
         return Ok(None);
     }
     let mut roots: Vec<Vec<u8>> = a
-        .roots
+        .etc_dirs
         .iter()
         .map(|r| files::check_path(r))
         .collect::<Result<_>>()?;
     if fs {
         roots.push(b"/".to_vec());
     } else if roots.is_empty() {
-        roots = DEFAULT_CONFIG_ROOTS
+        roots = DEFAULT_ETC_DIRS
             .iter()
             .map(|r| r.as_bytes().to_vec())
             .collect();
@@ -315,9 +327,9 @@ fn file_options(a: &CompareArgs) -> Result<Option<FileOptions>> {
         max_hash_size: a.max_hash_size,
         sensitive: SensitivePolicy {
             extra,
-            metadata: a.sensitive_metadata,
+            metadata: a.reveal_sensitive_metadata,
         },
-        compare_mtime: a.compare_mtime,
+        compare_mtime: a.with_mtime,
         content: !a.no_diff,
         max_content_size: a.max_diff_size,
     }))
@@ -447,9 +459,55 @@ mod tests {
         };
         assert!(file_options(&a).unwrap().is_none());
 
-        let Cmd::Compare(a) = parse(&["compare", "--root", "etc", "a", "b"]).unwrap().cmd else {
+        let Cmd::Compare(a) = parse(&["compare", "--etc-dirs", "etc", "a", "b"])
+            .unwrap()
+            .cmd
+        else {
             panic!()
         };
         assert!(file_options(&a).is_err());
+    }
+
+    #[test]
+    fn etc_dirs() {
+        let Cmd::Compare(a) = parse(&["compare", "--etc-dirs", "/opt/app/etc,/etc", "a", "b"])
+            .unwrap()
+            .cmd
+        else {
+            panic!()
+        };
+        let o = file_options(&a).unwrap().unwrap();
+        assert_eq!(o.roots, vec![b"/etc".to_vec(), b"/opt/app/etc".to_vec()]);
+
+        // One comma separated list, the option is given once.
+        assert!(
+            parse(&[
+                "compare",
+                "--etc-dirs",
+                "/etc",
+                "--etc-dirs",
+                "/srv",
+                "a",
+                "b"
+            ])
+            .is_err()
+        );
+
+        // Without etc in --check the directories would not be compared.
+        let Cmd::Compare(a) = parse(&[
+            "compare",
+            "--check",
+            "packages,filesystem",
+            "--etc-dirs",
+            "/srv",
+            "a",
+            "b",
+        ])
+        .unwrap()
+        .cmd
+        else {
+            panic!()
+        };
+        assert!(file_options(&a).unwrap_err().0.contains("--etc-dirs"));
     }
 }

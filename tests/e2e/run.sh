@@ -419,7 +419,7 @@ check "filesystem" '[01]' "Result" \
 # Files on pseudo file systems are never read: reading /proc/kmsg as root
 # would block until the kernel logs something.
 check "pseudo fs never read" 0 "Result: identical" \
-    --password testerpw -- compare --check config --root /proc/kmsg vm1 vm1
+    --password testerpw -- compare --check etc --etc-dirs /proc/kmsg vm1 vm1
 
 # ---------------------------------------------------------------------------
 # Escalation, connection and binary errors
@@ -433,8 +433,8 @@ check "not in sudoers" 2 "escalation with sudo" \
     --password nosudopw -- ping nosudo@vm1
 check "wrong su password" 2 "escalation with su" \
     --password wrong -- ping --become su vm1
-check "binary not found" 2 "not found .*--remote-path" \
-    -- ping --remote-path /opt/none/parity vm1
+check "binary not found" 2 "not found .*--parity-path" \
+    -- ping --parity-path /opt/none/parity vm1
 check "ssh failure" 2 "ssh to .* failed" \
     -- ping --ssh-option Port=1 vm1
 check "option-like target" 2 "must not start with '-'" \
@@ -449,17 +449,17 @@ vroot vm1 'cat >/usr/local/bin/parity-old && chmod 755 /usr/local/bin/parity-old
 echo "PARITY-HOLD 99 9.9.9 $$ 2f"
 EOS
 check "version mismatch before password" 2 "remote parity 9.9.9 \(protocol 99\)" \
-    -- ping --remote-path /usr/local/bin/parity-old vm1
+    -- ping --parity-path /usr/local/bin/parity-old vm1
 vroot vm1 'rm /usr/local/bin/parity-old'
 
 # A binary that users other than root can change is refused: first one in a
 # directory everyone can write to, then one owned by another user.
 vroot vm1 'mkdir -m 777 /opt/open && cp /usr/local/bin/parity /opt/open/'
 check "binary writable by others" 2 "can be changed by other users" \
-    -- ping --remote-path /opt/open/parity vm1
+    -- ping --parity-path /opt/open/parity vm1
 vroot vm1 'chown 1001 /opt/open/parity && chmod 755 /opt/open'
 check "binary owned by another user" 2 "can be changed by other users" \
-    -- ping --remote-path /opt/open/parity vm1
+    -- ping --parity-path /opt/open/parity vm1
 vroot vm1 'rm -r /opt/open'
 
 check_no_processes_left
@@ -510,9 +510,9 @@ vroot vm2 '
     touch /opt/app/lib/x
     chown 1000 /var/lib/dpkg/info/bash.list'
 check "content diff" 1 "^ +\+\+\+ vm2:/etc/adduser.conf" \
-    --password testerpw -- compare --check config "${fresh_excludes[@]}" vm1 vm2
+    --password testerpw -- compare --check etc "${fresh_excludes[@]}" vm1 vm2
 check "config change" 1 "^ +\+extra" \
-    --password testerpw -- compare --check config "${fresh_excludes[@]}" vm1 vm2
+    --password testerpw -- compare --check etc "${fresh_excludes[@]}" vm1 vm2
 check "filesystem mode change" 1 "mode: 0755 -> 4755" \
     --password testerpw -- compare --check filesystem "${fresh_excludes[@]}" vm1 vm2
 check "filesystem new tree" 1 "only on vm2 +directory +app \(and 2 entries below\)" \
