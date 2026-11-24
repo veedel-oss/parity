@@ -41,7 +41,7 @@ Additions to the built-in list of sensitive paths (`crates/parity-collect/src/se
 
 ## Development setup
 
-You need Linux, [rustup](https://rustup.rs) and a C compiler such as `gcc`, which Rust uses as the linker. `rust-toolchain.toml` pins the Rust version that every build uses, in CI, for releases and locally. rustup installs it together with rustfmt, clippy and the musl target the first time you run `cargo` in the repository, or ahead of time with:
+You need Linux, [rustup](https://rustup.rs) and a C compiler such as `gcc`. Rust uses it as the linker for everything built for your machine itself: `cargo build`, `cargo test`, and the build scripts and proc macros of the dependencies. Only the musl release binary is linked without it. `rust-toolchain.toml` pins the Rust version that every build uses, in CI, for releases and locally. rustup installs it together with rustfmt, clippy and the musl target the first time you run `cargo` in the repository, or ahead of time with:
 
 ```bash
 rustup toolchain install

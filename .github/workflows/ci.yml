@@ -10,7 +10,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -D warnings
+  # Warnings fail the build. 
+  # Cargo 1.85 (the minimum supported version) ignores this setting. See build_minimum_rust_version
+  CARGO_BUILD_WARNINGS: deny
 
 jobs:
   check:

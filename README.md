@@ -19,7 +19,7 @@ It also helps with infrastructure as code for existing systems: compare a legacy
 - Compares the file systems of two machines (paths, permissions, ownership, size and checksums)
 - Gives a fast overview of whether two systems differ, and where
 - Read-only: Parity reports differences and never changes a system
-- Runs on any Linux you can reach over SSH, old or new: one statically linked binary written in Rust, no libraries or runtimes needed on the target systems
+- Runs on any Linux you can reach over SSH, old or new: one fully static binary written in Rust, no libraries or runtimes needed on the target systems
 
 ## Status
 
