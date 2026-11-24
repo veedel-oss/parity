@@ -1,8 +1,11 @@
 name: Release
 
-# Pushing a tag v<version> builds the static binary and creates a GitHub
-# release with it. Tag only a commit on main on which ci.yml and e2e.yml
-# have passed; this workflow does not run the tests again.
+# Pushing a tag v<version> builds the static binary, attests its provenance
+# and creates a draft GitHub release with it, which the maintainer publishes.
+# Only organisation owners can push v* tags (tag ruleset in the repository
+# settings), and the release job waits for approval in the environment "release".
+# Tag only a commit on main on which ci.yml and e2e.yml have passed; this
+# workflow does not run the tests again.
 on:
   push:
     tags: ['v*']
@@ -13,18 +16,19 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
+  # Only the architecture the e2e tests run on is released.
+  TARGET: x86_64-unknown-linux-musl
 
 jobs:
-  release:
-    name: build and publish the release
+  # Runs the code of the project and of its dependencies (build scripts), so
+  # it gets read access only, no OIDC token, and keeps no credentials.
+  build:
+    name: build the release binary
     runs-on: ubuntu-26.04
-    permissions:
-      contents: write
-    env:
-      # Only the architecture the e2e tests run on is released.
-      TARGET: x86_64-unknown-linux-musl
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install Rust
         run: |
           rustup toolchain install stable --profile minimal --target "$TARGET"
@@ -40,23 +44,59 @@ jobs:
             echo "::error::tag $GITHUB_REF_NAME does not match $("$bin" --version)"
             exit 1
           fi
-          echo "VERSION=$version" >> "$GITHUB_ENV"
-      - name: release notes from CHANGELOG.md
+          mkdir dist
+          cp "$bin" "dist/parity-$version-$TARGET"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: binary
+          path: dist/
+          if-no-files-found: error
+          # Long enough for the approval of the release job.
+          retention-days: 7
+
+  # Runs no code of the project. Holds the permissions to attest and to
+  # create the release, and starts only after approval in the environment.
+  release:
+    name: attest and create the draft release
+    needs: build
+    runs-on: ubuntu-26.04
+    environment: release
+    permissions:
+      # Create the release.
+      contents: write
+      # Sigstore certificate, attestation and its storage record.
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: /CHANGELOG.md
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: binary
+          path: dist
+      - name: checksums and release notes
         run: |
+          version=${GITHUB_REF_NAME#v}
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          (cd dist && sha256sum "parity-$version-$TARGET" > SHA256SUMS)
           # The section below the heading "## <version> (<date>)", up to the next heading.
-          awk -v v="$VERSION" '$1 == "##" && $2 == v { on = 1; next } /^## / { on = 0 } on' \
+          awk -v v="$version" '$1 == "##" && $2 == v { on = 1; next } /^## / { on = 0 } on' \
             CHANGELOG.md > notes.md
           if ! grep -q '[^[:space:]]' notes.md; then
-            echo "::error::CHANGELOG.md has no section for $VERSION"
+            echo "::error::CHANGELOG.md has no section for $version"
             exit 1
           fi
-      - name: create the release
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/parity-${{ env.VERSION }}-${{ env.TARGET }}
+      - name: create the draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          name=parity-$VERSION-$TARGET
-          mkdir dist
-          cp "target/$TARGET/release/parity" "dist/$name"
-          (cd dist && sha256sum "$name" > SHA256SUMS)
-          gh release create "v$VERSION" --verify-tag --title "$VERSION" \
-            --notes-file notes.md "dist/$name" dist/SHA256SUMS
+          gh release create "v$VERSION" --verify-tag --draft --title "$VERSION" \
+            --notes-file notes.md "dist/parity-$VERSION-$TARGET" dist/SHA256SUMS

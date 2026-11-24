@@ -2,7 +2,20 @@
 
 Working plan for the Rust implementation. Work on one or two steps per session, add tests, then tick the step off. Keep this file up to date after every step. Architecture and decisions live in `docs/architecture.md`.
 
-Milestones 1 (end-to-end skeleton), 2 (comparison of packages), 3 (comparison of configuration directories), 4 (comparison of the whole file system) and 5 (release preparation, first release 0.0.1) are complete and removed; their decisions are in `docs/architecture.md`.
+Milestones 1 (end-to-end skeleton), 2 (comparison of packages), 3 (comparison of configuration directories) and 4 (comparison of the whole file system) are complete and removed; their decisions are in `docs/architecture.md`.
+
+## Milestone 5: Release preparation
+
+Steps 21 to 23 are complete; their decisions are in `docs/architecture.md` (Decisions, Command line, Builds) and `docs/security-review.md`. Steps 25 to 29 make sure that only the maintainer can publish a release, and that a download can be checked against the maintainer's key.
+
+- [ ] 24. First tagged release, 0.0.1.
+  - Done: name (`parity`, not on crates.io), release notes in `CHANGELOG.md`, `.github/workflows/release.yml`.
+  - Open: steps 25 to 29 first. Then, on the release commit, CI and e2e pass, the maintainer pushes the signed tag `v0.0.1` and publishes the draft release.
+- [x] 25. Rulesets, setup GitHub Rulesets
+- [ ] 26. Repository and organisation settings: write access for as few users as possible, 2FA required, default `GITHUB_TOKEN` permissions read-only, only actions by GitHub allowed and SHA pinning required, immutable releases enabled.
+- [x] 27. `release.yml` in two jobs: a build job with read-only permissions and `persist-credentials: false`, and a release job with write permissions that runs no code of the project or its dependencies and creates the release as a draft. (Since the repository is public: the release job runs in the environment `release`, set up by the maintainer, and attests the build provenance of the binary with `actions/attest`. See `docs/architecture.md`, Builds.)
+- [ ] 28. Pin the Rust toolchain of the release build, so it changes only with a commit.
+- [ ] 29. Signed checksums: the maintainer signs `SHA256SUMS` with their GPG key and attaches `SHA256SUMS.asc` to the draft before publishing it. The README and the release notes say how to verify a download.
 
 ## Later
 
