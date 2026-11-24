@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest a new feature or an improvement.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Larger changes are discussed in an issue before a pull request. The principles they have to fit are in [CONTRIBUTING.md](https://github.com/veedel-oss/parity/blob/main/CONTRIBUTING.md#before-you-start).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What do you want to do that Parity does not support, or does badly?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: How should Parity solve it? Commands, options and output, if you have an idea.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Packages
+        - Configuration directories (--check etc)
+        - Whole file system (--check filesystem)
+        - Reports and output
+        - Connection and privilege escalation
+        - Support for another distribution
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Other solutions or workarounds you considered.
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Principles
+      options:
+        - label: The proposal keeps Parity read-only on the targets and keeps analysis out of collect mode.
+          required: true

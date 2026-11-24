@@ -1,0 +1,71 @@
+name: Bug report
+description: Parity reports something wrong, fails or behaves unexpectedly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Security problems do not belong in a public issue: see the [security policy](https://github.com/veedel-oss/parity/blob/main/SECURITY.md).
+
+        Reports can contain host names, addresses and file contents. Remove anything you do not want to publish.
+  - type: input
+    id: version
+    attributes:
+      label: Parity version
+      description: Output of `parity --version`. The CLI and the binary on the targets must be the same version.
+      placeholder: parity 0.0.1
+    validations:
+      required: true
+  - type: textarea
+    id: systems
+    attributes:
+      label: Systems
+      description: Distribution and kernel of the workstation and of each target (`cat /etc/os-release`, `uname -r`).
+      placeholder: |
+        workstation: Debian 13, 6.12
+        targets: Debian 11, 5.10 and Debian 12, 6.1
+    validations:
+      required: true
+  - type: dropdown
+    id: become
+    attributes:
+      label: Privilege escalation
+      options:
+        - sudo (default)
+        - su
+        - none (logged in as root)
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The command you ran.
+      render: shell
+      placeholder: parity compare --check etc host-a host-b
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output and exit code
+      description: What the command printed, and its exit code (`echo $?`; 0 identical, 1 differences found, 2 error).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What you expected to happen instead.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I removed host names, addresses and file contents I do not want to publish.
+          required: true
+        - label: This is not a security problem (see the security policy).
+          required: true

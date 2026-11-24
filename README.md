@@ -91,7 +91,7 @@ To find out what was added or changed on a system compared with a fresh install 
 
 ## Contributing
 
-Issues and pull requests are welcome. Please open an issue first for larger changes.
+Issues and pull requests are welcome. Please open an issue first for larger changes. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to report bugs, set up a development environment, run the tests and prepare a pull request, [SECURITY.md](SECURITY.md) for how to report security issues privately, and the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
