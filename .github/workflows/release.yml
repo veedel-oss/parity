@@ -1,0 +1,62 @@
+name: Release
+
+# Pushing a tag v<version> builds the static binary and creates a GitHub
+# release with it. Tag only a commit on main on which ci.yml and e2e.yml
+# have passed; this workflow does not run the tests again.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  release:
+    name: build and publish the release
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    env:
+      # Only the architecture the e2e tests run on is released.
+      TARGET: x86_64-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target "$TARGET"
+          rustup default stable
+      - name: cargo build
+        run: cargo build --release --locked --target "$TARGET"
+      - name: check the binary against the tag
+        run: |
+          bin=target/$TARGET/release/parity
+          file "$bin" | grep -q 'statically linked\|static-pie linked'
+          version=${GITHUB_REF_NAME#v}
+          if [ "$("$bin" --version)" != "parity $version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match $("$bin" --version)"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: release notes from CHANGELOG.md
+        run: |
+          # The section below the heading "## <version> (<date>)", up to the next heading.
+          awk -v v="$VERSION" '$1 == "##" && $2 == v { on = 1; next } /^## / { on = 0 } on' \
+            CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::CHANGELOG.md has no section for $VERSION"
+            exit 1
+          fi
+      - name: create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name=parity-$VERSION-$TARGET
+          mkdir dist
+          cp "target/$TARGET/release/parity" "dist/$name"
+          (cd dist && sha256sum "$name" > SHA256SUMS)
+          gh release create "v$VERSION" --verify-tag --title "$VERSION" \
+            --notes-file notes.md "dist/$name" dist/SHA256SUMS

@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased (draft notes for 0.1.0)
+## 0.0.1 (2026-11-24)
 
-First release.
+First release. Install the binary as `parity` on your workstation and on every target, for example in `/usr/local/bin`.
 
 - `parity compare <a> <b>` compares two Linux machines over SSH: installed Debian packages, configuration directories (`/etc` and `/usr/local/etc`, or `--etc-dirs`) including unified diffs of changed text files, and with `--check filesystem` the whole file system.
 - Reports as a table grouped by directory, or as JSON with `--format json`. Exit codes: 0 identical, 1 different, 2 error.
@@ -12,4 +12,4 @@ First release.
 - Read-only on the targets: no files written, access times unchanged, symlinks never followed, pseudo file systems never read.
 - Sensitive paths such as `/etc/shadow` and SSH host keys are compared by type, mode, owner and group only; their content is never sent. Add paths with `--sensitive`.
 - `--exclude` and `--sensitive` take path patterns: `*` matches within one name, as in `/var/lib/*/tmp`, and a pattern covers everything below the paths it matches.
-- One static binary for x86_64 and aarch64 Linux, built against musl. Supported and tested targets: Debian 10, 11, 12 and 13 (Linux 4.19 to 6.12).
+- One static binary for x86_64 Linux, built against musl. Supported and tested targets: Debian 10, 11, 12 and 13 (Linux 4.19 to 6.12).

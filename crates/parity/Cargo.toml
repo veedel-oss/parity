@@ -6,8 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+publish.workspace = true
 
 
 [dependencies]
-parity-collect = { path = "../parity-collect", version = "0.1.0" }
-parity-analyze = { path = "../parity-analyze", version = "0.1.0" }
+parity-collect = { path = "../parity-collect" }
+parity-analyze = { path = "../parity-analyze" }

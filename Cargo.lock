@@ -221,7 +221,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "parity"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "parity-analyze",
  "parity-collect",
@@ -229,7 +229,7 @@ dependencies = [
 
 [[package]]
 name = "parity-analyze"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "clap",
  "parity-proto",
@@ -241,7 +241,7 @@ dependencies = [
 
 [[package]]
 name = "parity-collect"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "libc",
  "parity-proto",
@@ -250,7 +250,7 @@ dependencies = [
 
 [[package]]
 name = "parity-proto"
-version = "0.1.0"
+version = "0.0.1"
 
 [[package]]
 name = "proc-macro2"
