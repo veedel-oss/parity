@@ -27,6 +27,9 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 use parity_proto::{Hello, MAX_FRAME, Request, Response, read_frame, write_frame};
+use rand::distr::Alphanumeric;
+use rand::rngs::{StdRng, SysRng};
+use rand::{RngExt, SeedableRng};
 
 use crate::error::{Error, Result, bail};
 
@@ -201,24 +204,16 @@ impl Drop for ControlPath {
     }
 }
 
-// Random alphanumeric token from the kernel's random source.
+// Random alphanumeric token: a CSPRNG seeded from the operating system's
+// random source, both from the rand crate.
 pub fn random_token(n: usize) -> Result<String> {
-    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let mut buf = vec![0u8; n * 2];
-    std::fs::File::open("/dev/urandom")
-        .and_then(|mut f| f.read_exact(&mut buf))
-        .map_err(|e| Error(format!("cannot read /dev/urandom: {e}")))?;
-    // 62 * 4 = 248: reject bytes above to avoid bias.
-    let s: String = buf
-        .iter()
-        .filter(|&&b| b < 248)
-        .map(|&b| ALPHABET[(b % 62) as usize] as char)
+    let rng = StdRng::try_from_rng(&mut SysRng)
+        .map_err(|e| Error(format!("cannot get random numbers from the system: {e}")))?;
+    Ok(rng
+        .sample_iter(Alphanumeric)
         .take(n)
-        .collect();
-    if s.len() < n {
-        return random_token(n);
-    }
-    Ok(s)
+        .map(char::from)
+        .collect())
 }
 
 // A running collect mode on one target.

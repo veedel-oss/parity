@@ -13,7 +13,6 @@ pub mod hold;
 mod path;
 pub mod sensitive;
 pub mod session;
-mod sha256;
 mod sys;
 mod walk;
 

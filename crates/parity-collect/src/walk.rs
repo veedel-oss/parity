@@ -5,10 +5,10 @@ use std::io;
 use std::os::fd::{AsRawFd, OwnedFd};
 
 use parity_proto::{Entry, ErrorKind, FileKind, HashState, Response, WalkRequest};
+use sha2::{Digest, Sha256};
 
 use crate::fs::{self, OpenError};
 use crate::sensitive::Sensitive;
-use crate::sha256::Sha256;
 use crate::{path, sys};
 
 pub const MAX_ROOTS: usize = 64;
@@ -241,7 +241,7 @@ fn hash_file(dir: &OwnedFd, name: &CStr, max: u64, closed: fn() -> bool) -> Hash
         }
         Ok(())
     }) {
-        Ok(Ok(())) => HashState::Sha256(h.finish()),
+        Ok(Ok(())) => HashState::Sha256(h.finalize().into()),
         Ok(Err(OpenError::TooLarge(_))) => HashState::TooLarge,
         Ok(Err(OpenError::NotRegular)) => HashState::Error("not a regular file".into()),
         Ok(Err(OpenError::PseudoFs)) => HashState::PseudoFs,

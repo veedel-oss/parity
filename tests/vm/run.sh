@@ -247,12 +247,12 @@ done
 leftovers
 
 # Ctrl-C in the middle of hashing a large file ends everything on the targets.
-# The file is sparse: hashing 3 GB of zeros takes seconds, but nothing is
-# written to the VM's disk. Ctrl-C comes once collect mode on vm1 has the file
-# open. The test depends on timing: if it does not finish
-# within interrupt_timeout seconds (a slow or stuck VM), it is reported as
-# timed out and does not count as a failure. A result it does reach (wrong
-# exit code, processes left) does.
+# The file is sparse: hashing 16 GB of zeros takes seconds even with the
+# CPU's SHA instructions, but nothing is written to the VM's disk. Ctrl-C
+# comes once collect mode on vm1 has the file open. The test depends on
+# timing: if it does not finish within interrupt_timeout seconds (a slow or
+# stuck VM), it is reported as timed out and does not count as a failure. A
+# result it does reach (wrong exit code, processes left) does.
 interrupt_timeout=120
 kill_tree() { # pid
     local c
@@ -261,9 +261,9 @@ kill_tree() { # pid
 }
 (
     failures=0
-    for n in "${vms[@]}"; do vroot "$n" 'truncate -s 3G /opt/big'; done
+    for n in "${vms[@]}"; do vroot "$n" 'truncate -s 16G /opt/big'; done
     hashing="ssh -F $work/ssh_config root@vm1 'find /proc/[0-9]*/fd -lname /opt/big 2>/dev/null | grep -q .'"
-    check "interrupt" 130 "" --password testerpw --password testerpw --interrupt-when "$hashing" -- compare --check filesystem --max-hash-size 4G vm1 vm2
+    check "interrupt" 130 "" --password testerpw --password testerpw --interrupt-when "$hashing" -- compare --check filesystem --max-hash-size 32G vm1 vm2
     sleep 1
     leftovers
     for n in "${vms[@]}"; do vroot "$n" 'rm -f /opt/big'; done
