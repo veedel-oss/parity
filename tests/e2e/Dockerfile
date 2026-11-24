@@ -1,4 +1,4 @@
-# Runs qemu for tests/vm/run.sh, so nothing needs to be installed on the host
+# Runs qemu for tests/e2e/run.sh, so nothing needs to be installed on the host
 # apart from docker. Needs /dev/kvm passed in.
 FROM debian:trixie
 RUN apt-get update \

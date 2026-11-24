@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 #
-# System tests on virtual machines.
+# End-to-end (e2e) tests on virtual machines.
 #
-# Usage: tests/vm/run.sh OS
+# Usage: tests/e2e/run.sh OS
+#        tests/e2e/run.sh --image-url OS
 #
 #   OS   debian-10, debian-11, debian-12 or debian-13
+#
+# With --image-url, only prints the URL of the cloud image of OS. CI uses it
+# for the key of its image cache.
 #
 # Tests what only a real system can show: an own kernel, real ssh, sudo and
 # su. Boots two VMs, vm1 and vm2, from the latest cloud image of OS, installs
@@ -24,7 +28,8 @@
 # Needs docker with /dev/kvm, ssh, ssh-keygen, curl and python3. qemu runs in
 # a container built from the Dockerfile next to this script. The image is
 # cached in ${XDG_CACHE_HOME:-~/.cache}/parity-vm and downloaded again when
-# the one on the server is newer. Also run in CI, one job per OS.
+# the one on the server is newer. Also run in CI, one job per OS
+# (.github/workflows/e2e.yml).
 
 set -euo pipefail
 
@@ -322,10 +327,21 @@ kill_tree() {
 # Preparation
 # ---------------------------------------------------------------------------
 
+# usage
+#
+# Prints how to call this script and exits with 2.
+usage() {
+    echo "usage: $0 [--image-url] OS (one of: ${oses[*]})" >&2
+    exit 2
+}
+
+if [[ $# == 2 && $1 == --image-url ]]; then
+    image_url "$2" || usage
+    exit 0
+fi
 os=${1:-}
 if [[ $# != 1 ]] || ! url=$(image_url "$os"); then
-    echo "usage: $0 OS (one of: ${oses[*]})" >&2
-    exit 2
+    usage
 fi
 
 mkdir -p "$cache"
@@ -598,7 +614,7 @@ fi
 # ---------------------------------------------------------------------------
 
 if [[ $failures != 0 ]]; then
-    echo "$failures VM test(s) failed on $os"
+    echo "$failures e2e test(s) failed on $os"
     exit 1
 fi
-echo "all VM tests passed on $os"
+echo "all e2e tests passed on $os"

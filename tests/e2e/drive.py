@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Runs a command on a pseudo terminal and types passwords when asked.
 
-Stands in for a person at the terminal in the VM tests: the password goes
+Stands in for a person at the terminal in the e2e tests: the password goes
 to the terminal, as it would from a keyboard, never to Parity.
 
     drive.py [--password PW]... [--interrupt-when SHELL-COMMAND] -- COMMAND...
