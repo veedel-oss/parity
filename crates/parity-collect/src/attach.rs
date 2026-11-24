@@ -208,6 +208,7 @@ mod tests {
 
     #[test]
     fn cmdline() {
+        // codeql[rust/hard-coded-cryptographic-value] Test nonce, not a secret.
         let n = "abcdefghijklmnop";
         assert!(cmdline_matches(
             b"/usr/bin/parity\0hold\0abcdefghijklmnop\0",

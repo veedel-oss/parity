@@ -596,10 +596,12 @@ mod tests {
     #[test]
     fn escalation_commands() {
         assert_eq!(
+            // codeql[rust/hard-coded-cryptographic-value] Test nonce, not a secret.
             escalation_command(Become::Sudo, "/usr/bin/parity", 42, "n0nce"),
             "sudo -- /usr/bin/parity collect --attach 42 n0nce"
         );
         assert_eq!(
+            // codeql[rust/hard-coded-cryptographic-value] Test nonce, not a secret.
             escalation_command(Become::Su, "/opt/my parity", 42, "n0nce"),
             r"su -c ''\''/opt/my parity'\'' collect --attach 42 n0nce' root"
         );
