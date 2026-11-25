@@ -72,7 +72,7 @@ tests/e2e/run.sh debian-12     # or debian-10, debian-11, debian-13
 
 They need docker with access to `/dev/kvm`, plus `ssh`, `ssh-keygen`, `curl` and `python3`. The images are downloaded once and cached in `~/.cache/parity-vm`. CI runs them for all four releases on every pull request. If you cannot run them locally, say so in the pull request.
 
-Shell scripts must pass `shellcheck` without findings. Disable a check only where the code is intended, on that line and with the reason, for example `# shellcheck disable=SC2016 # expands on the VM`.
+Shell scripts must pass `shellcheck` without findings, with all optional checks enabled (`.shellcheckrc`, which shellcheck reads by itself); CI checks every `*.sh` file in the repository, so give shell scripts that extension. Disable a check only where the code is intended, on that line and with the reason, for example `# shellcheck disable=SC2016 # expands on the VM`.
 
 ## Debian package
 
@@ -100,7 +100,7 @@ It prints the path of the package, here `target/parity_<version>_amd64.deb`. The
 - Branch from `main` and keep the history linear: rebase onto `main` instead of merging `main` into your branch.
 - Commit messages have a short subject in the imperative ("Match excludes as patterns") and a body that explains what changed and why, wrapped at 72 characters.
 - Describe how you tested the change, especially on real systems.
-- All checks must pass: formatting, clippy, the tests, the build with Rust 1.85, the static builds and the e2e tests.
+- All checks must pass: formatting, clippy, shellcheck, the tests, the build with Rust 1.85, the static builds and the e2e tests.
 
 ## License
 

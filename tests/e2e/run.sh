@@ -34,7 +34,7 @@
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
-root=$(cd "$here/../.." && pwd)
+root=$(cd "${here}/../.." && pwd)
 
 # ---------------------------------------------------------------------------
 # Settings
@@ -47,7 +47,7 @@ oses=(debian-10 debian-11 debian-12 debian-13)
 target=x86_64-unknown-linux-musl
 
 # Downloaded cloud images, kept between runs.
-cache=${XDG_CACHE_HOME:-$HOME/.cache}/parity-vm
+cache=${XDG_CACHE_HOME:-${HOME}/.cache}/parity-vm
 
 # The two VMs. The names are also their ssh host names.
 vms=(vm1 vm2)
@@ -74,15 +74,14 @@ image_url() {
         debian-11) distro=debian; release=11; codename=bullseye ;;
         debian-12) distro=debian; release=12; codename=bookworm ;;
         debian-13) distro=debian; release=13; codename=trixie ;;
-        *) return 1 ;;
+        *) usage ;;
     esac
-    case $distro in
+    case ${distro} in
         debian)
             echo "https://cloud.debian.org/images/cloud/${codename}/latest/debian-${release}-genericcloud-amd64.qcow2"
-            return 0
             ;;
+        *) echo "no image for ${distro}" >&2; exit 1 ;;
     esac
-    return 1
 }
 
 # download_image URL FILE
@@ -92,18 +91,18 @@ image_url() {
 # to the server's). An unfinished download never replaces FILE.
 download_image() {
     local url=$1 file=$2
-    rm -f "$file.part"
-    if [[ -f $file ]]; then
-        curl -fsSL -R -z "$file" -o "$file.part" "$url"
+    rm -f "${file}.part"
+    if [[ -f ${file} ]]; then
+        curl -fsSL -R -z "${file}" -o "${file}.part" "${url}"
     else
-        echo "downloading $url"
-        curl -fL -R --progress-bar -o "$file.part" "$url"
+        echo "downloading ${url}"
+        curl -fL -R --progress-bar -o "${file}.part" "${url}"
     fi
     # Missing or empty if FILE is up to date.
-    if [[ -s $file.part ]]; then
-        mv "$file.part" "$file"
+    if [[ -s ${file}.part ]]; then
+        mv "${file}.part" "${file}"
     fi
-    rm -f "$file.part"
+    rm -f "${file}.part"
 }
 
 # test_executables
@@ -112,8 +111,8 @@ download_image() {
 # prints the path of each test executable, one per line.
 test_executables() {
     # From the workspace root, so rust-toolchain.toml applies.
-    (cd "$root" && cargo test --workspace --locked \
-        --target $target --no-run --message-format=json 2>/dev/null) |
+    (cd "${root}" && cargo test --workspace --locked \
+        --target "${target}" --no-run --message-format=json 2>/dev/null) |
         python3 -c '
 import json, sys
 for line in sys.stdin:
@@ -130,10 +129,10 @@ for line in sys.stdin:
 cleanup() {
     local c
     for c in "${containers[@]}"; do
-        docker rm -f "$c" >/dev/null 2>&1 || true
+        docker rm -f "${c}" >/dev/null 2>&1 || true
     done
-    docker run --rm -v "$work:/work" parity-vm-runner sh -c 'rm -rf /work/*' 2>/dev/null || true
-    rm -rf "$work"
+    docker run --rm -v "${work}:/work" parity-vm-runner sh -c 'rm -rf /work/*' 2>/dev/null || true
+    rm -rf "${work}"
 }
 
 # write_seed VM
@@ -141,10 +140,10 @@ cleanup() {
 # Writes the cloud-init configuration of VM to $work/seed-VM: the users listed
 # under Settings, each with the test key.
 write_seed() {
-    local vm=$1 dir=$work/seed-$1 key
-    key=$(cat "$work/key.pub")
-    mkdir -p "$dir"
-    cat >"$dir/user-data" <<EOS
+    local vm=$1 dir=${work}/seed-$1 key
+    key=$(cat "${work}/key.pub")
+    mkdir -p "${dir}"
+    cat >"${dir}/user-data" <<EOS
 #cloud-config
 users:
   - name: tester
@@ -152,12 +151,12 @@ users:
     shell: /bin/bash
     lock_passwd: false
     ssh_authorized_keys:
-      - $key
+      - ${key}
   - name: nosudo
     shell: /bin/bash
     lock_passwd: false
     ssh_authorized_keys:
-      - $key
+      - ${key}
 chpasswd:
   list: |
     tester:testerpw
@@ -165,7 +164,7 @@ chpasswd:
     root:rootpw
   expire: false
 EOS
-    echo "instance-id: $vm" >"$dir/meta-data"
+    echo "instance-id: ${vm}" >"${dir}/meta-data"
 }
 
 # start_vm VM IMAGE
@@ -179,26 +178,26 @@ EOS
 # reaches the VM's port 22 through port 2222 of the container, which docker
 # publishes on a free port of 127.0.0.1.
 start_vm() {
-    local vm=$1 image=$2 container=$tag-$1 port
-    write_seed "$vm"
-    docker run -d --name "$container" --device /dev/kvm \
-        -v "$cache:/cache:ro" -v "$work:/work" -p 127.0.0.1::2222 \
+    local vm=$1 image=$2 container=${tag}-$1 port
+    write_seed "${vm}"
+    docker run -d --name "${container}" --device /dev/kvm \
+        -v "${cache}:/cache:ro" -v "${work}:/work" -p 127.0.0.1::2222 \
         parity-vm-runner sh -euc "
-        qemu-img create -q -f qcow2 -F qcow2 -b /cache/$image /work/$vm.qcow2 8G
-        genisoimage -quiet -output /work/seed-$vm.iso -volid cidata -joliet -rock /work/seed-$vm
+        qemu-img create -q -f qcow2 -F qcow2 -b /cache/${image} /work/${vm}.qcow2 8G
+        genisoimage -quiet -output /work/seed-${vm}.iso -volid cidata -joliet -rock /work/seed-${vm}
         exec qemu-system-x86_64 -enable-kvm -cpu host -m 1024 -smp 2 \
-            -drive file=/work/$vm.qcow2,if=virtio \
-            -drive file=/work/seed-$vm.iso,if=virtio,format=raw \
+            -drive file=/work/${vm}.qcow2,if=virtio \
+            -drive file=/work/seed-${vm}.iso,if=virtio,format=raw \
             -nic user,model=virtio-net-pci,hostfwd=tcp::2222-:22 \
-            -display none -serial file:/work/$vm.console -monitor none" >/dev/null
-    containers+=("$container")
-    port=$(docker port "$container" 2222/tcp | head -1 | sed 's/.*://')
-    cat >>"$work/ssh_config" <<EOS
-Host $vm
+            -display none -serial file:/work/${vm}.console -monitor none" >/dev/null
+    containers+=("${container}")
+    port=$(docker port "${container}" 2222/tcp | head -1 | sed 's/.*://')
+    cat >>"${work}/ssh_config" <<EOS
+Host ${vm}
   HostName 127.0.0.1
-  Port $port
+  Port ${port}
   User tester
-  IdentityFile $work/key
+  IdentityFile ${work}/key
   IdentitiesOnly yes
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null
@@ -210,12 +209,12 @@ EOS
 # vssh [USER@]VM COMMAND...
 #
 # Runs COMMAND on VM over ssh, as tester unless USER is given.
-vssh() { ssh -F "$work/ssh_config" "$@"; }
+vssh() { ssh -F "${work}/ssh_config" "$@"; }
 
 # vroot VM COMMAND
 #
 # Runs the shell command COMMAND as root on VM.
-vroot() { ssh -F "$work/ssh_config" "root@$1" "$2"; }
+vroot() { ssh -F "${work}/ssh_config" "root@$1" "$2"; }
 
 # wait_for_vm VM
 #
@@ -223,14 +222,16 @@ vroot() { ssh -F "$work/ssh_config" "root@$1" "$2"; }
 # If VM cannot be reached then, shows the end of its console and exits.
 wait_for_vm() {
     local vm=$1
-    echo "waiting for $vm"
+    echo "waiting for ${vm}"
     for _ in $(seq 120); do
-        vssh "$vm" test -f /var/lib/cloud/instance/boot-finished 2>/dev/null && break
+        # shellcheck disable=SC2310 # vssh is one ssh command, set -e changes nothing in it
+        vssh "${vm}" test -f /var/lib/cloud/instance/boot-finished 2>/dev/null && break
         sleep 5
     done
-    if ! vssh "$vm" true; then
-        tail -30 "$work/$vm.console"
-        echo "$vm did not come up"
+    # shellcheck disable=SC2310 # vssh is one ssh command, set -e changes nothing in it
+    if ! vssh "${vm}" true; then
+        tail -30 "${work}/${vm}.console"
+        echo "${vm} did not come up"
         exit 1
     fi
 }
@@ -242,10 +243,10 @@ wait_for_vm() {
 # can change), and lets root log in with the test key.
 install_parity() {
     local vm=$1
-    vssh "$vm" 'mkdir -p /tmp/parity-tests'
-    scp -q -F "$work/ssh_config" "$bin" "$vm:/tmp/parity"
-    scp -q -F "$work/ssh_config" "${tests[@]}" "$vm:/tmp/parity-tests/"
-    vssh "$vm" 'echo testerpw | sudo -S -p "" sh -c "
+    vssh "${vm}" 'mkdir -p /tmp/parity-tests'
+    scp -q -F "${work}/ssh_config" "${bin}" "${vm}:/tmp/parity"
+    scp -q -F "${work}/ssh_config" "${tests[@]}" "${vm}:/tmp/parity-tests/"
+    vssh "${vm}" 'echo testerpw | sudo -S -p "" sh -c "
         install -o root -g root -m 0755 /tmp/parity /usr/local/bin/parity &&
         install -o root -g root -m 0600 ~tester/.ssh/authorized_keys /root/.ssh/authorized_keys"'
 }
@@ -289,13 +290,13 @@ check() {
     local subcommand=$1
     shift
     local out rc=0
-    out=$(timeout 600 python3 "$here/drive.py" "${drive[@]}" -- \
-        "$bin" "$subcommand" --ssh-config "$work/ssh_config" "$@" 2>&1) || rc=$?
-    if [[ $rc =~ ^($want)$ ]] && grep -qE -- "$pattern" <<<"$out"; then
-        ok "$name"
+    out=$(timeout 600 python3 "${here}/drive.py" "${drive[@]}" -- \
+        "${bin}" "${subcommand}" --ssh-config "${work}/ssh_config" "$@" 2>&1) || rc=$?
+    if [[ ${rc} =~ ^(${want})$ ]] && grep -qE -- "${pattern}" <<<"${out}"; then
+        ok "${name}"
     else
-        fail "$name: exit $rc (want $want), pattern '$pattern'"
-        head -40 <<<"$out" | indent
+        fail "${name}: exit ${rc} (want ${want}), pattern '${pattern}'"
+        head -40 <<<"${out}" | indent
     fi
 }
 
@@ -306,9 +307,10 @@ check() {
 check_no_processes_left() {
     local vm
     for vm in "${vms[@]}"; do
-        if vssh "$vm" ps -eo args | grep -q '^[^ ]*parity '; then
-            fail "processes left on $vm:"
-            vssh "$vm" ps -eo pid,user,args | grep parity
+        # shellcheck disable=SC2310 # vssh is one ssh command, set -e changes nothing in it
+        if vssh "${vm}" ps -eo args | grep -q '^[^ ]*parity '; then
+            fail "processes left on ${vm}:"
+            vssh "${vm}" ps -eo pid,user,args | grep parity
         fi
     done
 }
@@ -319,7 +321,7 @@ check_no_processes_left() {
 kill_tree() {
     local c
     for c in $(pgrep -P "$1"); do
-        kill_tree "$c"
+        kill_tree "${c}"
     done
     kill "$1" 2>/dev/null || true
 }
@@ -337,22 +339,23 @@ usage() {
 }
 
 if [[ $# == 2 && $1 == --image-url ]]; then
-    image_url "$2" || usage
+    image_url "$2"
     exit 0
 fi
-os=${1:-}
-if [[ $# != 1 ]] || ! url=$(image_url "$os"); then
-    usage
-fi
+[[ $# == 1 ]] || usage
+os=$1
+# An unknown OS ends the script here with the usage (set -e).
+url=$(image_url "${os}")
 
-mkdir -p "$cache"
-image=$os.qcow2
-download_image "$url" "$cache/$image"
+mkdir -p "${cache}"
+image=${os}.qcow2
+download_image "${url}" "${cache}/${image}"
 
 # From the workspace root, so rust-toolchain.toml applies.
-(cd "$root" && cargo build --release --locked --target $target)
-bin=$root/target/$target/release/parity
-mapfile -t tests < <(test_executables)
+(cd "${root}" && cargo build --release --locked --target "${target}")
+bin=${root}/target/${target}/release/parity
+test_list=$(test_executables)
+mapfile -t tests <<<"${test_list}"
 
 # Files of this run: the test key, ssh_config, the VMs' disks, seeds and
 # consoles, test logs.
@@ -362,16 +365,17 @@ tag=parity-vm-$$
 containers=()
 trap cleanup EXIT
 
-docker build -q -t parity-vm-runner "$here" >/dev/null
-ssh-keygen -q -t ed25519 -N '' -f "$work/key"
+docker build -q -t parity-vm-runner "${here}" >/dev/null
+ssh-keygen -q -t ed25519 -N '' -f "${work}/key"
 
 for vm in "${vms[@]}"; do
-    start_vm "$vm" "$image"
+    start_vm "${vm}" "${image}"
 done
 for vm in "${vms[@]}"; do
-    wait_for_vm "$vm"
-    install_parity "$vm"
-    echo "$vm: $os, Linux $(vssh "$vm" uname -r)"
+    wait_for_vm "${vm}"
+    install_parity "${vm}"
+    kernel=$(vssh "${vm}" uname -r)
+    echo "${vm}: ${os}, Linux ${kernel}"
 done
 
 failures=0
@@ -389,11 +393,12 @@ run_tests='
         "$t" -q --test-threads=1 || exit 1
     done'
 for vm in "${vms[@]}"; do
-    if vroot "$vm" "$run_tests" >"$work/tests-$vm.log" 2>&1; then
-        ok "tests as root $vm"
+    # shellcheck disable=SC2310 # vroot is one ssh command, set -e changes nothing in it
+    if vroot "${vm}" "${run_tests}" >"${work}/tests-${vm}.log" 2>&1; then
+        ok "tests as root ${vm}"
     else
-        fail "tests as root $vm"
-        tail -40 "$work/tests-$vm.log" | indent
+        fail "tests as root ${vm}"
+        tail -40 "${work}/tests-${vm}.log" | indent
     fi
 done
 
@@ -532,18 +537,18 @@ check "filesystem owner change" 1 "uid: 0 -> 1000" \
 atime_files=(/etc /etc/adduser.conf /etc/debian_version /usr/share/doc /var/lib/dpkg/status)
 declare -A atimes_before
 for vm in "${vms[@]}"; do
-    vroot "$vm" "touch -a -d 2020-01-01 ${atime_files[*]}"
-    atimes_before[$vm]=$(vssh "$vm" stat -c "'%X %n'" "${atime_files[@]}")
+    vroot "${vm}" "touch -a -d 2020-01-01 ${atime_files[*]}"
+    atimes_before[${vm}]=$(vssh "${vm}" stat -c "'%X %n'" "${atime_files[@]}")
 done
 check "compare for atime" 1 "Result" \
     --password testerpw -- compare vm1 vm2
 for vm in "${vms[@]}"; do
-    atimes_after=$(vssh "$vm" stat -c "'%X %n'" "${atime_files[@]}")
-    if [[ ${atimes_before[$vm]} == "$atimes_after" ]]; then
-        ok "access times unchanged $vm"
+    atimes_after=$(vssh "${vm}" stat -c "'%X %n'" "${atime_files[@]}")
+    if [[ ${atimes_before[${vm}]} == "${atimes_after}" ]]; then
+        ok "access times unchanged ${vm}"
     else
-        fail "access times changed on $vm:"
-        diff <(echo "${atimes_before[$vm]}") <(echo "$atimes_after") || true
+        fail "access times changed on ${vm}:"
+        diff <(echo "${atimes_before[${vm}]}") <(echo "${atimes_after}") || true
     fi
 done
 
@@ -569,45 +574,45 @@ interrupt_timeout=120
     # shellcheck disable=SC2030 # counted here, added up below
     failures=0
     for vm in "${vms[@]}"; do
-        vroot "$vm" 'truncate -s 16G /opt/big'
+        vroot "${vm}" 'truncate -s 16G /opt/big'
     done
     # Succeeds once a process on vm1 has /opt/big open.
-    hashing="ssh -F $work/ssh_config root@vm1 'find /proc/[0-9]*/fd -lname /opt/big 2>/dev/null | grep -q .'"
+    hashing="ssh -F ${work}/ssh_config root@vm1 'find /proc/[0-9]*/fd -lname /opt/big 2>/dev/null | grep -q .'"
     # One password for each VM. Exit 130 is 128 + SIGINT. Files up to 32 GB
     # are hashed, so /opt/big is.
     check "interrupt" 130 "" \
-        --password testerpw --password testerpw --interrupt-when "$hashing" \
+        --password testerpw --password testerpw --interrupt-when "${hashing}" \
         -- compare --check filesystem --max-hash-size 32G vm1 vm2
     # Gives the processes on the targets a moment to exit.
     sleep 1
     check_no_processes_left
     for vm in "${vms[@]}"; do
-        vroot "$vm" 'rm -f /opt/big'
+        vroot "${vm}" 'rm -f /opt/big'
     done
-    echo "$failures" >"$work/interrupt.failures"
+    echo "${failures}" >"${work}/interrupt.failures"
 ) &
 interrupt_pid=$!
 
 deadline=$((SECONDS + interrupt_timeout))
-while kill -0 "$interrupt_pid" 2>/dev/null && ((SECONDS < deadline)); do
+while kill -0 "${interrupt_pid}" 2>/dev/null && ((SECONDS < deadline)); do
     sleep 1
 done
-if kill -0 "$interrupt_pid" 2>/dev/null; then
-    kill_tree "$interrupt_pid"
-    wait "$interrupt_pid" 2>/dev/null || true
-    echo "TIMEOUT interrupt: not finished after $interrupt_timeout s, not counted as a failure"
+if kill -0 "${interrupt_pid}" 2>/dev/null; then
+    kill_tree "${interrupt_pid}"
+    wait "${interrupt_pid}" 2>/dev/null || true
+    echo "TIMEOUT interrupt: not finished after ${interrupt_timeout} s, not counted as a failure"
     # Shown as a warning on the summary of a GitHub Actions run.
     if [[ -n ${GITHUB_ACTIONS:-} ]]; then
-        echo "::warning::interrupt test timed out on $os"
+        echo "::warning::interrupt test timed out on ${os}"
     fi
 else
     rc=0
-    wait "$interrupt_pid" || rc=$?
-    if [[ -f $work/interrupt.failures ]]; then
+    wait "${interrupt_pid}" || rc=$?
+    if [[ -f ${work}/interrupt.failures ]]; then
         # shellcheck disable=SC2031 # the subshell's count comes from the file
-        failures=$((failures + $(cat "$work/interrupt.failures")))
+        failures=$((failures + $(cat "${work}/interrupt.failures")))
     else
-        fail "interrupt: a command on a VM failed (exit $rc)"
+        fail "interrupt: a command on a VM failed (exit ${rc})"
     fi
 fi
 
@@ -615,8 +620,8 @@ fi
 # Result
 # ---------------------------------------------------------------------------
 
-if [[ $failures != 0 ]]; then
-    echo "$failures e2e test(s) failed on $os"
+if [[ ${failures} != 0 ]]; then
+    echo "${failures} e2e test(s) failed on ${os}"
     exit 1
 fi
-echo "all e2e tests passed on $os"
+echo "all e2e tests passed on ${os}"

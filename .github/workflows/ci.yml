@@ -15,7 +15,20 @@ env:
   CARGO_BUILD_WARNINGS: deny
 
 jobs:
-  check:
+  check_bash:
+    name: shellcheck
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: shellcheck
+        # Every shell script, without findings, with the optional checks
+        # that .shellcheckrc enables. A check is disabled only on the line it
+        # concerns, with the reason (AGENTS.md).
+        run: |
+          shellcheck --version
+          git ls-files -z '*.sh' | xargs -0 shellcheck
+
+  check_rust:
     name: fmt, clippy, build, test
     runs-on: ubuntu-26.04
     steps:

@@ -36,7 +36,7 @@ One binary, `parity`, with the subcommands `compare` (CLI) and `collect` (collec
 - All code is written from scratch for this repository.
 - Never implement hashing, cryptography, random number generation or other security-relevant algorithms yourself: use well-known, maintained libraries (SHA-256 from `sha2`, random tokens from `rand`). This outweighs keeping the dependency list short.
 - Tests never depend on the system that runs them. Unit tests are pure: pass in what they need (paths, UIDs, metadata, file system types) or mock it. Integration tests in `crates/*/tests` only touch fixtures they create; collect mode takes the paths it reads on its own (dpkg database, built-in sensitive list) from `session::Config`. What only a real system can show (kernel behaviour, access times, `/proc`) belongs in the e2e tests in `tests/e2e`.
-- Shell scripts pass `shellcheck` without findings. Fix what it reports; disable a check only where the code is intended, on that line, with the reason (`# shellcheck disable=SC2016 # expands on the VM`).
+- Shell scripts pass `shellcheck` without findings, with all optional checks (`.shellcheckrc`); CI checks every `*.sh` file. Fix what it reports; disable a check only where the code is intended, on that line, with the reason (`# shellcheck disable=SC2016 # expands on the VM`).
 - Command and option names are fixed for the first release (`docs/architecture.md`, Command line). Ask before renaming, removing or adding one, and keep the README, the help texts and the docs in step.
 - Tick off steps in `docs/plan.md` as they are done. When a milestone is complete, delete it from the plan and move any lasting decisions into `docs/architecture.md`.
 
