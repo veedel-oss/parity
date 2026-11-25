@@ -42,4 +42,4 @@ One binary, `parity`, with the subcommands `compare` (CLI) and `collect` (collec
 
 ## Status
 
-Version 0.0.1 is the first release: Debian-based targets, x86_64 only. The architecture, the protocol, privilege escalation and the command line are decided and described in `docs/architecture.md`; open points are listed there and in `docs/plan.md`.
+The first release supports Debian-based targets on x86_64 only. The architecture, the protocol, privilege escalation and the command line are decided and described in `docs/architecture.md`; open points are listed there and in `docs/plan.md`.

@@ -23,7 +23,7 @@ It also helps with infrastructure as code for existing systems: compare a legacy
 
 ## Status
 
-Parity is in early development. The first release, 0.0.1, runs on x86_64 Linux, and its package comparison supports Debian-based systems only. It is tested on Debian 10 to 13, on the workstation as well as on the targets.
+Parity is in early development. It runs on x86_64 Linux, and its package comparison supports Debian-based systems only. It is tested on Debian 10 to 13, on the workstation as well as on the targets.
 
 ## How it works
 

@@ -13,7 +13,7 @@ body:
     attributes:
       label: Parity version
       description: Output of `parity --version`. The CLI and the binary on the targets must be the same version.
-      placeholder: parity 0.0.1
+      placeholder: parity X.Y.Z
     validations:
       required: true
   - type: textarea

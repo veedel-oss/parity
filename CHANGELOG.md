@@ -2,7 +2,7 @@
 
 ## 0.0.1 (2026-11-24)
 
-First release. Install it on your workstation and on every target: on Debian and its derivatives the package, with `sudo apt install ./parity_0.0.1_amd64.deb`, elsewhere the binary as `parity`, for example in `/usr/local/bin`.
+First release.
 
 - `parity compare <a> <b>` compares two Linux machines over SSH: installed Debian packages, configuration directories (`/etc` and `/usr/local/etc`, or `--etc-dirs`) including unified diffs of changed text files, and with `--check filesystem` the whole file system.
 - Reports as a table grouped by directory, or as JSON with `--format json`. Exit codes: 0 identical, 1 different, 2 error.
@@ -14,4 +14,4 @@ First release. Install it on your workstation and on every target: on Debian and
 - Sensitive paths such as `/etc/shadow` and SSH host keys are compared by type, mode, owner and group only; their content is never sent. Add paths with `--sensitive`.
 - `--exclude` and `--sensitive` take path patterns: `*` matches within one name, as in `/var/lib/*/tmp`, and a pattern covers everything below the paths it matches.
 - One static binary for x86_64 Linux, built against musl. Supported and tested targets: Debian 10, 11, 12 and 13 (Linux 4.19 to 6.12).
-- The Debian package `parity_0.0.1_amd64.deb` installs that binary as `/usr/bin/parity`.
+- A Debian package installs that binary as `/usr/bin/parity`.
