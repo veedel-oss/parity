@@ -1,8 +1,6 @@
 # The Rust version of every build: CI, e2e tests, release and local
 # development. rustup installs it with these components and targets.
-# Dependabot proposes updates (.github/dependabot.yml). The minimum
-# supported version (rust-version in Cargo.toml) is checked separately in
-# CI with `cargo +1.85`.
+# Dependabot proposes updates (.github/dependabot.yml).
 [toolchain]
 channel = "1.100.0"
 profile = "minimal"

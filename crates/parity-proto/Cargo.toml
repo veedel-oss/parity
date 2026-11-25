@@ -3,7 +3,6 @@ name = "parity-proto"
 description = "Protocol shared by the collect mode and the CLI side of Parity"
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 publish.workspace = true

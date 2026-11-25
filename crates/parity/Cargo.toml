@@ -3,7 +3,6 @@ name = "parity"
 description = "Compare two Linux machines and show where they differ"
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 publish.workspace = true

@@ -47,8 +47,6 @@ You need Linux, [rustup](https://rustup.rs) and a C compiler such as `gcc`. Rust
 rustup toolchain install
 ```
 
-The code must also build with Rust 1.85, the minimum supported version (`rust-version` in `Cargo.toml`). CI checks that with `cargo +1.85 build --workspace --all-targets --locked`.
-
 The checks CI runs on every pull request:
 
 ```bash
@@ -100,7 +98,7 @@ It prints the path of the package, here `target/parity_<version>_amd64.deb`. The
 - Branch from `main` and keep the history linear: rebase onto `main` instead of merging `main` into your branch.
 - Commit messages have a short subject in the imperative ("Match excludes as patterns") and a body that explains what changed and why, wrapped at 72 characters.
 - Describe how you tested the change, especially on real systems.
-- All checks must pass: formatting, clippy, shellcheck, the tests, the build with Rust 1.85, the static builds and the e2e tests.
+- All checks must pass: formatting, clippy, shellcheck, the tests, the static builds and the e2e tests.
 
 ## License
 
