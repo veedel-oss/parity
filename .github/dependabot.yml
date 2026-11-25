@@ -28,20 +28,6 @@ updates:
       semver-minor-days: 14
       semver-major-days: 30
 
-  # The version of cargo-deb that the release installs, pinned in a manifest
-  # that is never built. Its dependencies are fixed by the Cargo.lock
-  # published with each version, so only cargo-deb itself is updated.
-  - package-ecosystem: cargo
-    directory: /packaging/deb/tools
-    schedule:
-      interval: daily
-    allow:
-      - dependency-name: cargo-deb
-    cooldown:
-      semver-patch-days: 7
-      semver-minor-days: 14
-      semver-major-days: 30
-
   # The base image of the e2e test container (tests/e2e/Dockerfile), pinned
   # by digest. The tag is a codename, so only the digest is updated.
   # Docker supports only default-days of the cooldown.

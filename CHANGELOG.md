@@ -14,4 +14,4 @@ First release. Install it on your workstation and on every target: on Debian and
 - Sensitive paths such as `/etc/shadow` and SSH host keys are compared by type, mode, owner and group only; their content is never sent. Add paths with `--sensitive`.
 - `--exclude` and `--sensitive` take path patterns: `*` matches within one name, as in `/var/lib/*/tmp`, and a pattern covers everything below the paths it matches.
 - One static binary for x86_64 Linux, built against musl. Supported and tested targets: Debian 10, 11, 12 and 13 (Linux 4.19 to 6.12).
-- The Debian package `parity_0.0.1_amd64.deb` installs that binary as `/usr/bin/parity`, with the completions for bash, fish and zsh.
+- The Debian package `parity_0.0.1_amd64.deb` installs that binary as `/usr/bin/parity`.

@@ -48,27 +48,12 @@ jobs:
           fi
           mkdir dist
           cp "$bin" "dist/parity-$version-$TARGET"
-      - name: Install cargo-deb
-        # Only here: CI and the e2e tests test the binary, not the package.
-        # The version is pinned in packaging/deb/tools/Cargo.toml, where
-        # Dependabot sees it. --locked builds it with the Cargo.lock published
-        # with that version.
-        run: |
-          version=$(cargo metadata --format-version 1 --no-deps --offline \
-              --manifest-path packaging/deb/tools/Cargo.toml |
-            jq -r '.packages[0].dependencies[] | select(.name == "cargo-deb") | .req')
-          if ! [[ $version =~ ^=[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::packaging/deb/tools/Cargo.toml must pin cargo-deb to an exact version, not '$version'"
-            exit 1
-          fi
-          cargo install cargo-deb --version "$version" --locked
       - name: build the Debian package
-        # cargo xtask deb (crates/xtask), as locally: the shell completions,
-        # then cargo-deb on the binary built and checked above, without
-        # building or stripping it again ([package.metadata.deb] in
-        # crates/parity/Cargo.toml). The file times in the package are the
-        # time of the tagged commit.
-        run: cargo xtask deb "dist/parity_${GITHUB_REF_NAME#v}_amd64.deb"
+        # packaging/deb/build.sh, as locally: dpkg-deb packages the binary
+        # built and checked above as it is, with the changelog and the
+        # copyright file. The file times in the package are the time of the
+        # tagged commit.
+        run: packaging/deb/build.sh "dist/parity-${GITHUB_REF_NAME#v}-$TARGET" dist
       - name: check the package against the tag and the binary
         run: |
           version=${GITHUB_REF_NAME#v}

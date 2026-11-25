@@ -128,11 +128,11 @@ Load the completion in the current shell:
   zsh:   source <(parity completion zsh)
 
 Add that line to ~/.bashrc, ~/.config/fish/config.fish or ~/.zshrc to load it \
-in every new shell. The Debian package installs the completion for all three.";
+in every new shell.";
 
 /// The shells that `parity completion` prints a script for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
-pub enum Shell {
+enum Shell {
     Bash,
     Fish,
     Zsh,
@@ -254,12 +254,12 @@ impl ConnArgs {
     }
 }
 
-// The completion script for `shell`, as `parity completion` prints it and
-// the Debian package installs it (crates/xtask). Rendered from the clap
-// definition of the CLI, so it always matches the help texts. `collect` and
-// `hold` are not part of it: the binary hands them over to collect mode
-// before the CLI parses anything (crates/parity/src/main.rs).
-pub fn completion(shell: Shell) -> Vec<u8> {
+// The completion script for `shell`, as `parity completion` prints it.
+// Rendered from the clap definition of the CLI, so it always matches the
+// help texts. `collect` and `hold` are not part of it: the binary hands them
+// over to collect mode before the CLI parses anything
+// (crates/parity/src/main.rs).
+fn completion(shell: Shell) -> Vec<u8> {
     let generator = match shell {
         Shell::Bash => clap_complete::Shell::Bash,
         Shell::Fish => clap_complete::Shell::Fish,

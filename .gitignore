@@ -1,5 +1,1 @@
 /target
-# Shell completions of the Debian package (cargo xtask deb)
-/packaging/deb/generated
-# packaging/deb/tools/Cargo.toml only holds the version of cargo-deb.
-/packaging/deb/tools/Cargo.lock

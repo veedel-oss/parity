@@ -76,14 +76,14 @@ Shell scripts must pass `shellcheck` without findings. Disable a check only wher
 
 ## Debian package
 
-The release builds the Debian package with [cargo-deb](https://github.com/kornelski/cargo-deb) (`.github/workflows/release.yml`), from the binary that CI and the e2e tests test; nothing else builds it. Its configuration is `[package.metadata.deb]` in `crates/parity/Cargo.toml`. To build it locally as the release does, install the cargo-deb version that `packaging/deb/tools/Cargo.toml` pins (Dependabot keeps it up to date there), then run `cargo xtask deb`:
+The release builds the Debian package with `packaging/deb/build.sh` (`.github/workflows/release.yml`), from the binary that CI and the e2e tests test; nothing else builds it. The script packages a static binary as it is, with the changelog and the copyright file, and needs `dpkg-deb`, which comes with dpkg (on Debian and Ubuntu always installed, elsewhere usually as the package `dpkg`). To build it locally as the release does:
 
 ```bash
-cargo install cargo-deb --version =<version> --locked
-cargo xtask deb                 # or: cargo xtask deb OUTPUT
+cargo build --release --locked --target x86_64-unknown-linux-musl
+packaging/deb/build.sh target/x86_64-unknown-linux-musl/release/parity target/
 ```
 
-It builds the static binary, writes the shell completions (the scripts that `parity completion` prints) into `packaging/deb/generated`, runs cargo-deb on that binary and prints the path of the package, by default in `target/debian/`. A plain `cargo deb` fails, because it does not write the completions, and it would package a dynamically linked binary for the build machine. `crates/xtask` is the tool for the release, never shipped; `cargo xtask` is an alias for `cargo run --locked -p xtask --` (`.cargo/config.toml`). `packaging/deb/copyright` names the copyright holders and licenses of everything linked into the binary. CI checks that it lists exactly the crates linked into it, so a pull request that adds or removes a dependency of the binary updates the file too.
+It prints the path of the package, here `target/parity_<version>_amd64.deb`. The version is the one the binary reports, and all file times are the time of the commit (or `SOURCE_DATE_EPOCH`), so the same commit gives the same package. `packaging/deb/copyright` names the copyright holders and licenses of everything linked into the binary. CI checks that it lists exactly the crates linked into it, so a pull request that adds or removes a dependency of the binary updates the file too.
 
 ## Code guidelines
 

@@ -1,11 +1,6 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
-# Everything but crates/xtask, the release tool that builds the Debian
-# package. A cargo build without -p or --workspace, as for the
-# release binary, does not build it, so its dependencies cannot change the
-# features of a dependency of parity.
-default-members = ["crates/parity", "crates/parity-analyze", "crates/parity-collect", "crates/parity-proto"]
 
 [workspace.package]
 version = "0.0.1"
