@@ -1,1 +1,3 @@
 /target
+# Man pages and completions of the Debian package (cargo run -p xtask -- gen-docs)
+/packaging/deb/generated

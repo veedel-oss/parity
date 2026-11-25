@@ -109,10 +109,12 @@ download_image() {
 # test_executables
 #
 # Builds the workspace tests for the static target without running them and
-# prints the path of each test executable, one per line.
+# prints the path of each test executable, one per line. Not those of xtask,
+# the release tool, which never runs on a target and whose tests need the
+# build machine.
 test_executables() {
     # From the workspace root, so rust-toolchain.toml applies.
-    (cd "$root" && cargo test --workspace --locked \
+    (cd "$root" && cargo test --workspace --exclude xtask --locked \
         --target $target --no-run --message-format=json 2>/dev/null) |
         python3 -c '
 import json, sys

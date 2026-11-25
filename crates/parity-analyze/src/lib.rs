@@ -7,7 +7,7 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
+use clap::{ArgAction, Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use parity_proto::SensitivePolicy;
 
 pub mod client;
@@ -226,6 +226,14 @@ impl ConnArgs {
             ssh_program: "ssh".into(),
         }
     }
+}
+
+// The command line as clap defines it, for the man pages and shell
+// completions that crates/xtask generates for the Debian package. `collect`
+// and `hold` are not part of it: the binary hands them over to collect mode
+// before the CLI parses anything (crates/parity/src/main.rs).
+pub fn command() -> clap::Command {
+    Cli::command()
 }
 
 // Entry point of the CLI. Returns the exit code.
