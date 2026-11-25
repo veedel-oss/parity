@@ -89,15 +89,19 @@ fn check_chain(exe: &std::path::Path, chain: &[PathInfo], uid: u32) -> Result<()
     for p in chain {
         let writable = p.mode & 0o002 != 0;
         let sticky_dir = p.is_dir && p.mode & 0o1000 != 0;
-        if (p.uid != 0 && p.uid != uid) || (writable && !sticky_dir) {
-            return Err(format!(
-                "refusing to run {} as root: {} can be changed by other users (owner {}, mode {:04o})",
-                exe.display(),
-                p.path.display(),
-                p.uid,
-                p.mode
-            ));
-        }
+        // The reason names no UID (see require_root); `ls -l` shows the owner.
+        let reason = if p.uid != 0 && p.uid != uid {
+            "it belongs to neither root nor you".to_string()
+        } else if writable && !sticky_dir {
+            format!("it is writable by others (mode {:04o})", p.mode)
+        } else {
+            continue;
+        };
+        return Err(format!(
+            "refusing to run {} as root: {} can be changed by other users: {reason}",
+            exe.display(),
+            p.path.display()
+        ));
     }
     Ok(())
 }
@@ -166,10 +170,11 @@ mod tests {
         let e = check((1001, 0o755), (0, 0o755)).unwrap_err();
         assert!(
             e.contains(
-                "/usr/local/bin/parity can be changed by other users (owner 1001, mode 0755)"
+                "/usr/local/bin/parity can be changed by other users: it belongs to neither root nor you"
             ),
             "{e}"
         );
+        assert!(!e.contains("1001"), "names no UID: {e}");
         assert!(check((0, 0o755), (1001, 0o755)).is_err());
     }
 
@@ -180,7 +185,12 @@ mod tests {
         // Writable by others.
         assert!(check((0, 0o757), (0, 0o755)).is_err());
         let e = check((0, 0o755), (0, 0o777)).unwrap_err();
-        assert!(e.contains("/usr/local/bin can be changed"), "{e}");
+        assert!(
+            e.contains(
+                "/usr/local/bin can be changed by other users: it is writable by others (mode 0777)"
+            ),
+            "{e}"
+        );
         // A sticky directory protects its entries, a sticky file nothing.
         assert!(check((0, 0o755), (0, 0o1777)).is_ok());
         assert!(check((0, 0o1757), (0, 0o755)).is_err());

@@ -20,14 +20,14 @@ mod walk;
 pub use attach::valid_nonce;
 
 // Checks that collect mode runs as root. Takes the effective UID so tests can
-// check both outcomes.
+// check both outcomes. Like all messages of collect mode, the error names no
+// UID: they are not secret, but output gets passed on (logs, bug reports),
+// and CodeQL counts UIDs in output as account information.
 pub fn require_root(euid: u32) -> Result<(), String> {
     if euid == 0 {
         Ok(())
     } else {
-        Err(format!(
-            "must run as root (effective UID 0, not {euid}); the parity CLI starts it with sudo or su"
-        ))
+        Err("must run as root (effective UID 0); the parity CLI starts it with sudo or su".into())
     }
 }
 
@@ -70,7 +70,9 @@ mod tests {
     #[test]
     fn root_check() {
         assert!(require_root(0).is_ok());
-        assert!(require_root(1000).unwrap_err().contains("must run as root"));
+        let e = require_root(1000).unwrap_err();
+        assert!(e.contains("must run as root"), "{e}");
+        assert!(!e.contains("1000"), "names no UID: {e}");
     }
 
     #[test]

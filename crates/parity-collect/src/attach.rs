@@ -147,7 +147,7 @@ pub fn attach(args: &[OsString]) -> Result<(), String> {
         let (uid, gid) = holder_ids(pid)?;
         if uid != expected {
             return Err(format!(
-                "holder process {pid} belongs to UID {uid}, not to the escalating user {expected}"
+                "holder process {pid} belongs to another user than the one who escalated"
             ));
         }
         check_cmdline(pid, nonce)?;
