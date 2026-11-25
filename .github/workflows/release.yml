@@ -20,8 +20,6 @@ env:
   CARGO_BUILD_WARNINGS: deny
   # Only the architecture the e2e tests run on is released.
   TARGET: x86_64-unknown-linux-musl
-  # Updated by hand: Dependabot does not see a version in a run line.
-  CARGO_DEB_VERSION: 3.8.0
 
 jobs:
   # Runs the code of the project and of its dependencies (build scripts), so
@@ -52,7 +50,18 @@ jobs:
           cp "$bin" "dist/parity-$version-$TARGET"
       - name: Install cargo-deb
         # Only here: CI and the e2e tests test the binary, not the package.
-        run: cargo install cargo-deb --version "$CARGO_DEB_VERSION" --locked
+        # The version is pinned in packaging/deb/tools/Cargo.toml, where
+        # Dependabot sees it. --locked builds it with the Cargo.lock published
+        # with that version.
+        run: |
+          version=$(cargo metadata --format-version 1 --no-deps --offline \
+              --manifest-path packaging/deb/tools/Cargo.toml |
+            jq -r '.packages[0].dependencies[] | select(.name == "cargo-deb") | .req')
+          if ! [[ $version =~ ^=[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::packaging/deb/tools/Cargo.toml must pin cargo-deb to an exact version, not '$version'"
+            exit 1
+          fi
+          cargo install cargo-deb --version "$version" --locked
       - name: man pages and shell completions
         run: cargo run --locked -p xtask -- gen-docs packaging/deb/generated
       - name: build the Debian package

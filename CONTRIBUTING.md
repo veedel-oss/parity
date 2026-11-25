@@ -76,10 +76,10 @@ Shell scripts must pass `shellcheck` without findings. Disable a check only wher
 
 ## Debian package
 
-The release builds the Debian package with [cargo-deb](https://github.com/kornelski/cargo-deb) (`.github/workflows/release.yml`), from the binary that CI and the e2e tests test; nothing else builds it. Its configuration is `[package.metadata.deb]` in `crates/parity/Cargo.toml`. To build it locally, with the cargo-deb version that `CARGO_DEB_VERSION` in the workflow names:
+The release builds the Debian package with [cargo-deb](https://github.com/kornelski/cargo-deb) (`.github/workflows/release.yml`), from the binary that CI and the e2e tests test; nothing else builds it. Its configuration is `[package.metadata.deb]` in `crates/parity/Cargo.toml`. To build it locally, with the cargo-deb version that `packaging/deb/tools/Cargo.toml` pins (Dependabot keeps it up to date there):
 
 ```bash
-cargo install cargo-deb --version 3.8.0 --locked
+cargo install cargo-deb --version <version> --locked
 cargo build --release --locked --target x86_64-unknown-linux-musl
 cargo run --locked -p xtask -- gen-docs packaging/deb/generated
 cargo deb -p parity --target x86_64-unknown-linux-musl --no-build --no-strip
