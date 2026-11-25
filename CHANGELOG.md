@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.1 (2026-11-24)
+## 0.0.1 (unreleased)
 
 First release.
 

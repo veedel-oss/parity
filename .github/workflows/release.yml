@@ -48,6 +48,16 @@ jobs:
           fi
           mkdir dist
           cp "$bin" "dist/parity-$version-$TARGET"
+      - name: check the changelog against the tag
+        # The section of the version is headed "## <version> (unreleased)"
+        # until the release. The tagged commit must have dropped the marker,
+        # which stops the release here, before the approval.
+        run: |
+          heading="## ${GITHUB_REF_NAME#v}"
+          if ! grep -qxF "$heading" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no heading '$heading' (a section marked unreleased does not count)"
+            exit 1
+          fi
       - name: build the Debian package
         # packaging/deb/build.sh, as locally: dpkg-deb packages the binary
         # built and checked above as it is, with the changelog and the
@@ -105,8 +115,8 @@ jobs:
           version=${GITHUB_REF_NAME#v}
           echo "VERSION=$version" >> "$GITHUB_ENV"
           (cd dist && sha256sum "parity-$version-$TARGET" "parity_${version}_amd64.deb" > SHA256SUMS)
-          # The section below the heading "## <version> (<date>)", up to the next heading.
-          awk -v v="$version" '$1 == "##" && $2 == v { on = 1; next } /^## / { on = 0 } on' \
+          # The section below the heading "## <version>", up to the next heading.
+          awk -v h="## $version" '$0 == h { on = 1; next } /^## / { on = 0 } on' \
             CHANGELOG.md > notes.md
           if ! grep -q '[^[:space:]]' notes.md; then
             echo "::error::CHANGELOG.md has no section for $version"

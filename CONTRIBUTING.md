@@ -92,7 +92,7 @@ It prints the path of the package, here `target/parity_<version>_amd64.deb`. The
 - Never implement hashing, cryptography, random number generation or other security-relevant algorithms yourself. Use well-known, maintained crates (SHA-256 from `sha2`, random tokens from `rand`).
 - Write the code yourself for this repository. Do not copy code from other projects.
 - No company-specific data anywhere: no real host names, IP addresses, user names or configuration, not in code, tests, examples or commit messages. Use names like `host-a` or `vm1`, and the documentation addresses `192.0.2.0/24` and `example.com`.
-- Keep the documentation in step with the code: the README, the help texts of the CLI and `docs/architecture.md`. Describe user-visible changes in one line for `CHANGELOG.md`.
+- Keep the documentation in step with the code: the README, the help texts of the CLI and `docs/architecture.md`. Describe user-visible changes in one line for `CHANGELOG.md`, in the section of the next version, headed `## <version> (unreleased)`. The release drops the marker; there are no dates.
 
 ## Pull requests
 
