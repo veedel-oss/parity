@@ -22,7 +22,8 @@ parity-analyze = { path = "../parity-analyze" }
 # See docs/architecture.md, Builds.
 [package.metadata.deb]
 maintainer = "veedel-oss <veedel-oss@mailbox.org>"
-copyright = "The Parity contributors"
+# Installed as /usr/share/doc/parity/copyright, as it is.
+license-file = ["../../packaging/deb/copyright", "0"]
 section = "admin"
 priority = "optional"
 # The version of the release as it is, without a Debian revision: releases

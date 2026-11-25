@@ -37,6 +37,20 @@ jobs:
               exit 1
             fi
           done
+      - name: check the copyright file of the Debian package
+        # packaging/deb/copyright must list exactly the crates linked into the
+        # release binary, one "Files: vendor/<crate>/*" each. Crates of this
+        # workspace have a path in parentheses, the others do not.
+        run: |
+          linked=$(cargo tree --locked -p parity --target x86_64-unknown-linux-musl \
+              -e normal,no-proc-macro --prefix none --format '{p}' |
+            grep -v ' (/' | awk '{ print $1 }' | sort -u)
+          listed=$(sed -n 's|^Files: vendor/\([^/]*\)/\*$|\1|p' packaging/deb/copyright | sort -u)
+          if [ "$linked" != "$listed" ]; then
+            echo "::error::packaging/deb/copyright does not list the linked crates (< linked, > listed)"
+            diff <(echo "$linked") <(echo "$listed")
+            exit 1
+          fi
       - name: cargo build
         run: cargo build --workspace --all-targets --locked
       - name: cargo test
