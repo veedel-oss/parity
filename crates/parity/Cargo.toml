@@ -15,9 +15,9 @@ parity-analyze = { path = "../parity-analyze" }
 
 # The Debian package parity_<version>_amd64.deb. cargo-deb builds it in the
 # release only (.github/workflows/release.yml), from the static binary that
-# was built before and that CI and the e2e tests tested:
-#
-#   cargo deb -p parity --target x86_64-unknown-linux-musl --no-build --no-strip
+# was built before and that CI and the e2e tests tested. Build it with
+# cargo xtask deb (crates/xtask), which generates the man pages and
+# completions first; a plain cargo deb fails without them.
 #
 # See docs/architecture.md, Builds.
 [package.metadata.deb]
@@ -43,8 +43,8 @@ each target, which the CLI starts over SSH with sudo or su for one run. The \
 collector only reads: Parity never changes the systems it inspects."""
 # No maintainer scripts, conffiles or services: installing the package
 # configures nothing, and removing it leaves nothing behind. cargo-deb
-# compresses the changelog and the man pages. The man pages and completions
-# are generated before, with cargo run -p xtask -- gen-docs packaging/deb/generated.
+# compresses the changelog and the man pages. cargo xtask deb generates the
+# man pages and completions into packaging/deb/generated first.
 assets = [
   ["target/release/parity", "usr/bin/", "755"],
   ["../../CHANGELOG.md", "usr/share/doc/parity/changelog", "644"],

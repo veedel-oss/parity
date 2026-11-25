@@ -76,16 +76,14 @@ Shell scripts must pass `shellcheck` without findings. Disable a check only wher
 
 ## Debian package
 
-The release builds the Debian package with [cargo-deb](https://github.com/kornelski/cargo-deb) (`.github/workflows/release.yml`), from the binary that CI and the e2e tests test; nothing else builds it. Its configuration is `[package.metadata.deb]` in `crates/parity/Cargo.toml`. To build it locally, with the cargo-deb version that `packaging/deb/tools/Cargo.toml` pins (Dependabot keeps it up to date there):
+The release builds the Debian package with [cargo-deb](https://github.com/kornelski/cargo-deb) (`.github/workflows/release.yml`), from the binary that CI and the e2e tests test; nothing else builds it. Its configuration is `[package.metadata.deb]` in `crates/parity/Cargo.toml`. To build it locally as the release does, install the cargo-deb version that `packaging/deb/tools/Cargo.toml` pins (Dependabot keeps it up to date there), then run `cargo xtask deb`:
 
 ```bash
-cargo install cargo-deb --version <version> --locked
-cargo build --release --locked --target x86_64-unknown-linux-musl
-cargo run --locked -p xtask -- gen-docs packaging/deb/generated
-cargo deb -p parity --target x86_64-unknown-linux-musl --no-build --no-strip
+cargo install cargo-deb --version =<version> --locked
+cargo xtask deb                 # or: cargo xtask deb OUTPUT
 ```
 
-cargo-deb writes the package to `target/debian/` and prints its path. `crates/xtask` is a tool for the release, never shipped: it generates the man pages and shell completions from the help texts of the CLI. `packaging/deb/copyright` names the copyright holders and licenses of everything linked into the binary. CI checks that it lists exactly the crates linked into it, so a pull request that adds or removes a dependency of the binary updates the file too.
+It builds the static binary, generates the man pages and shell completions into `packaging/deb/generated`, runs cargo-deb on that binary and prints the path of the package, by default in `target/debian/`. A plain `cargo deb` fails, because it does not generate the man pages and completions, and it would package a dynamically linked binary for the build machine. `crates/xtask` is the tool for the release, never shipped; `cargo xtask` is an alias for `cargo run --locked -p xtask --` (`.cargo/config.toml`). `packaging/deb/copyright` names the copyright holders and licenses of everything linked into the binary. CI checks that it lists exactly the crates linked into it, so a pull request that adds or removes a dependency of the binary updates the file too.
 
 ## Code guidelines
 

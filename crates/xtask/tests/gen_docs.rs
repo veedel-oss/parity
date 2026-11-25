@@ -44,12 +44,12 @@ fn other_arguments_are_a_usage_error() {
         &["gen-docs"],
         &["gen-docs", "a", "b"],
         &["docs", "a"],
+        &["deb", "a", "b"],
     ] {
         let out = xtask().args(args).output().unwrap();
         assert_eq!(out.status.code(), Some(2), "{args:?}");
         assert!(
-            String::from_utf8_lossy(&out.stderr)
-                .contains("usage: cargo run -p xtask -- gen-docs OUTDIR")
+            String::from_utf8_lossy(&out.stderr).contains("usage: cargo xtask gen-docs OUTDIR")
         );
     }
 }
