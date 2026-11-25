@@ -10,7 +10,9 @@ publish.workspace = true
 
 [dependencies]
 parity-proto = { path = "../parity-proto" }
-clap = { version = "4.5", features = ["derive"] }
+# Without the default features color and suggestions: plain help and
+# errors, no "did you mean" hints, and none of the crates behind them.
+clap = { version = "4.5", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 # The scripts of parity completion, from the clap definition of the CLI.
 clap_complete = "4.6"
 serde = { version = "1", features = ["derive"] }

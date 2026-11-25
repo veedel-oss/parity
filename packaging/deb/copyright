@@ -12,19 +12,7 @@ Files: *
 Copyright: The Parity contributors
 License: AGPL-3.0-or-later
 
-Files: vendor/anstream/*
-Copyright: Individual contributors
-License: MIT or Apache-2.0
-
 Files: vendor/anstyle/*
-Copyright: Individual contributors
-License: MIT or Apache-2.0
-
-Files: vendor/anstyle-parse/*
-Copyright: Individual contributors
-License: MIT or Apache-2.0
-
-Files: vendor/anstyle-query/*
 Copyright: Individual contributors
 License: MIT or Apache-2.0
 
@@ -56,10 +44,6 @@ Files: vendor/clap_lex/*
 Copyright: Individual contributors
 License: MIT or Apache-2.0
 
-Files: vendor/colorchoice/*
-Copyright: Individual contributors
-License: MIT or Apache-2.0
-
 Files: vendor/cpufeatures/*
 Copyright: 2020-2026 The RustCrypto Project Developers
 License: MIT or Apache-2.0
@@ -80,10 +64,6 @@ License: MIT or Apache-2.0
 
 Files: vendor/hybrid-array/*
 Copyright: 2022-2026 The RustCrypto Project Developers
-License: MIT or Apache-2.0
-
-Files: vendor/is_terminal_polyfill/*
-Copyright: Individual contributors
 License: MIT or Apache-2.0
 
 Files: vendor/itoa/*
@@ -135,19 +115,9 @@ Copyright: Armin Ronacher
  Brandon Williams
 License: Apache-2.0
 
-Files: vendor/strsim/*
-Copyright: 2015 Danny Guo
- 2016 Titus Wormer
- 2018 Akash Kurdekar
-License: MIT
-
 Files: vendor/typenum/*
 Copyright: 2014 Paho Lurie-Gregg
 License: MIT or Apache-2.0
-
-Files: vendor/utf8parse/*
-Copyright: 2016 Joe Wilm
-License: Apache-2.0 or MIT
 
 Files: vendor/zmij/*
 Copyright: David Tolnay
