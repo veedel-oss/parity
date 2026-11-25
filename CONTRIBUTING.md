@@ -83,7 +83,7 @@ cargo install cargo-deb --version =<version> --locked
 cargo xtask deb                 # or: cargo xtask deb OUTPUT
 ```
 
-It builds the static binary, generates the man pages and shell completions into `packaging/deb/generated`, runs cargo-deb on that binary and prints the path of the package, by default in `target/debian/`. A plain `cargo deb` fails, because it does not generate the man pages and completions, and it would package a dynamically linked binary for the build machine. `crates/xtask` is the tool for the release, never shipped; `cargo xtask` is an alias for `cargo run --locked -p xtask --` (`.cargo/config.toml`). `packaging/deb/copyright` names the copyright holders and licenses of everything linked into the binary. CI checks that it lists exactly the crates linked into it, so a pull request that adds or removes a dependency of the binary updates the file too.
+It builds the static binary, writes the shell completions (the scripts that `parity completion` prints) into `packaging/deb/generated`, runs cargo-deb on that binary and prints the path of the package, by default in `target/debian/`. A plain `cargo deb` fails, because it does not write the completions, and it would package a dynamically linked binary for the build machine. `crates/xtask` is the tool for the release, never shipped; `cargo xtask` is an alias for `cargo run --locked -p xtask --` (`.cargo/config.toml`). `packaging/deb/copyright` names the copyright holders and licenses of everything linked into the binary. CI checks that it lists exactly the crates linked into it, so a pull request that adds or removes a dependency of the binary updates the file too.
 
 ## Code guidelines
 

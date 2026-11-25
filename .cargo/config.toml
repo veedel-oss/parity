@@ -20,7 +20,6 @@ rustflags = [
   "-C", "link-self-contained=yes",
 ]
 
-# cargo xtask gen-docs OUTDIR and cargo xtask deb [OUTPUT]: the release tool
-# in crates/xtask.
+# cargo xtask deb [OUTPUT]: the release tool in crates/xtask.
 [alias]
 xtask = "run --locked -p xtask --"

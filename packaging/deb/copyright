@@ -48,6 +48,10 @@ Files: vendor/clap_builder/*
 Copyright: Individual contributors
 License: MIT or Apache-2.0
 
+Files: vendor/clap_complete/*
+Copyright: Individual contributors
+License: MIT or Apache-2.0
+
 Files: vendor/clap_lex/*
 Copyright: Individual contributors
 License: MIT or Apache-2.0

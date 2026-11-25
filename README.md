@@ -41,7 +41,7 @@ Each target only needs the `parity` binary, a running SSH server and sudo or su.
 
 Install Parity on your workstation and on every machine you want to compare, in the same version everywhere. Each [release](https://github.com/veedel-oss/parity/releases) has two files:
 
-- `parity_<version>_amd64.deb`, the Debian package for Debian and its derivatives. It installs `/usr/bin/parity`, the man pages (`man parity-compare`) and completions for bash, zsh and fish:
+- `parity_<version>_amd64.deb`, the Debian package for Debian and its derivatives. It installs `/usr/bin/parity` and the shell completions for bash, fish and zsh:
 
   ```bash
   sudo apt install ./parity_<version>_amd64.deb
@@ -100,6 +100,14 @@ parity compare --become su host-a host-b
 Exit codes of `parity compare`, as with `diff`: 0 identical, 1 differences found, 2 error (the comparison could not be completed).
 
 `parity ping <target>` checks that Parity starts on a target and answers. `parity packages <target>` lists the installed packages of one target. Both take the `--become`, `--parity-path` and ssh options. `parity <command> --help` shows all options.
+
+`parity completion bash|fish|zsh` prints the completion script for your shell. The Debian package installs it already; with the plain binary, load it in your shell's startup file:
+
+```bash
+source <(parity completion bash)   # ~/.bashrc
+source <(parity completion zsh)    # ~/.zshrc, after compinit
+parity completion fish | source    # ~/.config/fish/config.fish
+```
 
 To find out what was added or changed on a system compared with a fresh install of its release, see [Comparing a system with a fresh install](docs/compare-with-base-install.md).
 

@@ -138,16 +138,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0921b3876b3a1df8a1c9f912e7f94342458022c2e84288015893d83c4d62a79"
 
 [[package]]
-name = "clap_mangen"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3b6a8907b1723f211693e27b9af5899b86a9512ef5b08bd4a15b6bceb30da6d"
-dependencies = [
- "clap",
- "roff",
-]
-
-[[package]]
 name = "colorchoice"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -251,6 +241,7 @@ name = "parity-analyze"
 version = "0.0.1"
 dependencies = [
  "clap",
+ "clap_complete",
  "parity-proto",
  "rand",
  "serde",
@@ -311,12 +302,6 @@ name = "rand_core"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
-
-[[package]]
-name = "roff"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "323c417e1d9665a65b263ec744ba09030cfb277e9daa0b018a4ab62e57bc8189"
 
 [[package]]
 name = "serde"
@@ -435,9 +420,6 @@ dependencies = [
 name = "xtask"
 version = "0.0.1"
 dependencies = [
- "clap",
- "clap_complete",
- "clap_mangen",
  "parity-analyze",
 ]
 

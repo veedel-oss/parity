@@ -63,9 +63,9 @@ jobs:
           fi
           cargo install cargo-deb --version "$version" --locked
       - name: build the Debian package
-        # cargo xtask deb (crates/xtask), as locally: the man pages and
-        # completions, then cargo-deb on the binary built and checked above,
-        # without building or stripping it again ([package.metadata.deb] in
+        # cargo xtask deb (crates/xtask), as locally: the shell completions,
+        # then cargo-deb on the binary built and checked above, without
+        # building or stripping it again ([package.metadata.deb] in
         # crates/parity/Cargo.toml). The file times in the package are the
         # time of the tagged commit.
         run: cargo xtask deb "dist/parity_${GITHUB_REF_NAME#v}_amd64.deb"

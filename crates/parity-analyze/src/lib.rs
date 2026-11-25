@@ -5,6 +5,7 @@
 //! Renaming or removing a command or option breaks scripts that use it.
 
 use std::ffi::OsString;
+use std::io::Write;
 use std::path::PathBuf;
 
 use clap::{ArgAction, Args, CommandFactory, Parser, Subcommand, ValueEnum};
@@ -110,6 +111,31 @@ enum Cmd {
         /// ssh destination: host, user@host or ssh://[user@]host[:port]
         target: String,
     },
+    /// Print the completion script for a shell
+    #[command(after_help = COMPLETION_HELP)]
+    Completion {
+        /// Shell to complete for
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+}
+
+const COMPLETION_HELP: &str = "\
+Load the completion in the current shell:
+
+  bash:  source <(parity completion bash)
+  fish:  parity completion fish | source
+  zsh:   source <(parity completion zsh)
+
+Add that line to ~/.bashrc, ~/.config/fish/config.fish or ~/.zshrc to load it \
+in every new shell. The Debian package installs the completion for all three.";
+
+/// The shells that `parity completion` prints a script for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum Shell {
+    Bash,
+    Fish,
+    Zsh,
 }
 
 #[derive(Args)]
@@ -228,12 +254,22 @@ impl ConnArgs {
     }
 }
 
-// The command line as clap defines it, for the man pages and shell
-// completions that crates/xtask generates for the Debian package. `collect`
-// and `hold` are not part of it: the binary hands them over to collect mode
+// The completion script for `shell`, as `parity completion` prints it and
+// the Debian package installs it (crates/xtask). Rendered from the clap
+// definition of the CLI, so it always matches the help texts. `collect` and
+// `hold` are not part of it: the binary hands them over to collect mode
 // before the CLI parses anything (crates/parity/src/main.rs).
-pub fn command() -> clap::Command {
-    Cli::command()
+pub fn completion(shell: Shell) -> Vec<u8> {
+    let generator = match shell {
+        Shell::Bash => clap_complete::Shell::Bash,
+        Shell::Fish => clap_complete::Shell::Fish,
+        Shell::Zsh => clap_complete::Shell::Zsh,
+    };
+    // Into a buffer: clap_complete panics if writing fails, for example
+    // into a closed pipe.
+    let mut script = Vec::new();
+    clap_complete::generate(generator, &mut Cli::command(), "parity", &mut script);
+    script
 }
 
 // Entry point of the CLI. Returns the exit code.
@@ -289,6 +325,14 @@ fn run(cli: Cli) -> Result<i32> {
             Ok(0)
         }
         Cmd::Compare(a) => compare(a),
+        Cmd::Completion { shell } => {
+            let mut stdout = std::io::stdout().lock();
+            stdout
+                .write_all(&completion(shell))
+                .and_then(|()| stdout.flush())
+                .map_err(|e| Error(format!("cannot write the completion script: {e}")))?;
+            Ok(0)
+        }
     }
 }
 
@@ -474,6 +518,69 @@ mod tests {
             panic!()
         };
         assert!(file_options(&a).is_err());
+    }
+
+    #[test]
+    fn collect_and_hold_are_not_commands() {
+        let cmd = Cli::command();
+        let names: Vec<&str> = cmd.get_subcommands().map(|s| s.get_name()).collect();
+        assert_eq!(names, ["compare", "packages", "ping", "completion"]);
+    }
+
+    #[test]
+    fn completion_takes_one_of_three_shells() {
+        for (arg, shell) in [
+            ("bash", Shell::Bash),
+            ("fish", Shell::Fish),
+            ("zsh", Shell::Zsh),
+        ] {
+            let Cmd::Completion { shell: parsed } = parse(&["completion", arg]).unwrap().cmd else {
+                panic!()
+            };
+            assert_eq!(parsed, shell);
+        }
+        for args in [
+            &["completion"][..],
+            &["completion", "powershell"],
+            &["completion", "bash", "zsh"],
+        ] {
+            assert!(parse(args).is_err(), "{args:?}");
+        }
+    }
+
+    #[test]
+    fn completions_have_every_command_and_option() {
+        let cmd = Cli::command();
+        let mut checked = 0;
+        for shell in [Shell::Bash, Shell::Fish, Shell::Zsh] {
+            let script = String::from_utf8(completion(shell)).unwrap();
+            for sub in cmd.get_subcommands() {
+                assert!(
+                    script.contains(sub.get_name()),
+                    "{} missing for {shell:?}",
+                    sub.get_name()
+                );
+                // Without those clap adds (--help, --version).
+                for long in sub.get_arguments().filter_map(|a| a.get_long()) {
+                    let option = if shell == Shell::Fish {
+                        format!("-l {long}")
+                    } else {
+                        format!("--{long}")
+                    };
+                    assert!(script.contains(&option), "{option} missing for {shell:?}");
+                    checked += 1;
+                }
+            }
+            // The shells after `parity completion`. clap_complete's fish
+            // script completes no positional arguments.
+            if shell != Shell::Fish {
+                assert!(script.contains("bash fish zsh"), "{shell:?}");
+            }
+        }
+        // --become, --parity-path, --ssh-config and --ssh-option on three
+        // commands, --format on two and 10 options of compare only, for each
+        // of the three shells.
+        assert_eq!(checked, 3 * (4 * 3 + 2 + 10));
     }
 
     #[test]

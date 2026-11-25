@@ -23,7 +23,7 @@ One binary, `parity`, with the subcommands `compare` (CLI) and `collect` (collec
 - `crates/parity-collect`: collect mode, runs as root on the target
 - `crates/parity-analyze`: CLI side: SSH, escalation, comparison, reports
 - `crates/parity-proto`: shared protocol types
-- `crates/xtask`: release tool, never shipped and not linked into `parity`: generates the man pages and shell completions of the Debian package from the CLI's clap definition and builds the package as the release does (`cargo xtask gen-docs DIR`, `cargo xtask deb`). Not a default member of the workspace, so a plain `cargo build` leaves it out.
+- `crates/xtask`: release tool, never shipped and not linked into `parity`: builds the Debian package as the release does, with the shell completions that `parity completion` prints (`cargo xtask deb`). Not a default member of the workspace, so a plain `cargo build` leaves it out.
 
 `parity-collect` and `parity-analyze` never depend on each other. The binary hands over to `parity-collect` before any other argument parsing, so no CLI code runs as root.
 
