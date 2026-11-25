@@ -206,16 +206,34 @@ mod tests {
         assert_eq!(parse_ids("Uid:\t1\t1\t1\t1\n"), None);
     }
 
+    // A different nonce in every run, like the CLI's: 16 hex digits from the
+    // standard library's randomly seeded hasher. For tests only, not for
+    // security (collect mode itself never makes nonces).
+    fn test_nonce() -> String {
+        use std::hash::{BuildHasher, RandomState};
+        format!("{:016x}", RandomState::new().hash_one(0u8))
+    }
+
     #[test]
     fn cmdline() {
-        // codeql[rust/hard-coded-cryptographic-value] Test nonce, not a secret.
-        let n = "abcdefghijklmnop";
+        let test_nonce = test_nonce();
+        assert!(valid_nonce(&test_nonce));
+        let cmdline = |s: &str| s.replace(' ', "\0") + "\0";
         assert!(cmdline_matches(
-            b"/usr/bin/parity\0hold\0abcdefghijklmnop\0",
-            n
+            cmdline(&format!("/usr/bin/parity hold {test_nonce}")).as_bytes(),
+            &test_nonce
         ));
-        assert!(!cmdline_matches(b"/usr/bin/parity\0hold\0other\0", n));
-        assert!(!cmdline_matches(b"sleep\0abcdefghijklmnop\0", n));
-        assert!(!cmdline_matches(b"x\0hold\0abcdefghijklmnop\0extra\0", n));
+        assert!(!cmdline_matches(
+            cmdline("/usr/bin/parity hold other").as_bytes(),
+            &test_nonce
+        ));
+        assert!(!cmdline_matches(
+            cmdline(&format!("sleep {test_nonce}")).as_bytes(),
+            &test_nonce
+        ));
+        assert!(!cmdline_matches(
+            cmdline(&format!("x hold {test_nonce} extra")).as_bytes(),
+            &test_nonce
+        ));
     }
 }

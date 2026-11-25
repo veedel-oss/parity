@@ -168,7 +168,6 @@ mod tests {
             e.contains(
                 "/usr/local/bin/parity can be changed by other users (owner 1001, mode 0755)"
             ),
-            // codeql[rust/cleartext-logging] Test failure message: UIDs and paths, no secret.
             "{e}"
         );
         assert!(check((0, 0o755), (1001, 0o755)).is_err());
@@ -181,7 +180,6 @@ mod tests {
         // Writable by others.
         assert!(check((0, 0o757), (0, 0o755)).is_err());
         let e = check((0, 0o755), (0, 0o777)).unwrap_err();
-        // codeql[rust/cleartext-logging] Test failure message: UIDs and paths, no secret.
         assert!(e.contains("/usr/local/bin can be changed"), "{e}");
         // A sticky directory protects its entries, a sticky file nothing.
         assert!(check((0, 0o755), (0, 0o1777)).is_ok());
@@ -193,7 +191,6 @@ mod tests {
         let mut c = chain((0, 0o755), (0, 0o755));
         c[4].mode = 0o777;
         let e = check_chain(Path::new("/usr/local/bin/parity"), &c, USER).unwrap_err();
-        // codeql[rust/cleartext-logging] Test failure message: UIDs and paths, no secret.
         assert!(e.contains(": / can be changed"), "{e}");
     }
 }

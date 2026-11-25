@@ -595,15 +595,15 @@ mod tests {
 
     #[test]
     fn escalation_commands() {
+        // A real nonce, as the CLI generates one for every session.
+        let nonce = random_token(32).unwrap();
         assert_eq!(
-            // codeql[rust/hard-coded-cryptographic-value] Test nonce, not a secret.
-            escalation_command(Become::Sudo, "/usr/bin/parity", 42, "n0nce"),
-            "sudo -- /usr/bin/parity collect --attach 42 n0nce"
+            escalation_command(Become::Sudo, "/usr/bin/parity", 42, &nonce),
+            format!("sudo -- /usr/bin/parity collect --attach 42 {nonce}")
         );
         assert_eq!(
-            // codeql[rust/hard-coded-cryptographic-value] Test nonce, not a secret.
-            escalation_command(Become::Su, "/opt/my parity", 42, "n0nce"),
-            r"su -c ''\''/opt/my parity'\'' collect --attach 42 n0nce' root"
+            escalation_command(Become::Su, "/opt/my parity", 42, &nonce),
+            format!(r"su -c ''\''/opt/my parity'\'' collect --attach 42 {nonce}' root")
         );
     }
 
