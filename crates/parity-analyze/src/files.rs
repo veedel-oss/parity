@@ -212,11 +212,12 @@ pub fn merge(
                 continue;
             }
         };
-        if let Some((s, prefix, idx)) = &collapse {
-            if *s == side && is_within(&e.path, prefix) {
-                *report.differences[*idx].entries_below.get_or_insert(0) += 1;
-                continue;
-            }
+        if let Some((s, prefix, idx)) = &collapse
+            && *s == side
+            && is_within(&e.path, prefix)
+        {
+            *report.differences[*idx].entries_below.get_or_insert(0) += 1;
+            continue;
         }
         let idx = report.differences.len();
         report.differences.push(FileDiff {
@@ -314,13 +315,13 @@ fn compare_pair(
         }
     }
     let size_differs = changes.iter().any(|c| c.field == "size");
-    if let Some(reason) = skip_reason {
-        if !size_differs {
-            report.skipped.push(Skipped {
-                path: show(&x.path),
-                reason: reason.into(),
-            });
-        }
+    if let Some(reason) = skip_reason
+        && !size_differs
+    {
+        report.skipped.push(Skipped {
+            path: show(&x.path),
+            reason: reason.into(),
+        });
     }
     if changes.is_empty() {
         return;

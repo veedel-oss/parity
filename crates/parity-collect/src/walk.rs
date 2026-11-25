@@ -244,7 +244,7 @@ fn hash_file(dir: &OwnedFd, name: &CStr, max: u64, closed: fn() -> bool) -> Hash
         // Large files take a while: stop early if the session has ended (the
         // walk then ends at the next entry).
         chunks = chunks.wrapping_add(1);
-        if chunks % 256 == 0 && closed() {
+        if chunks.is_multiple_of(256) && closed() {
             return Err(io::Error::other("session closed"));
         }
         Ok(())
