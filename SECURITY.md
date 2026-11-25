@@ -35,9 +35,10 @@ Not vulnerabilities: what the user who can become root on the target can see by 
 
 ## Verifying a release
 
-Every release binary comes with a `SHA256SUMS` file and a build provenance attestation, which shows that the binary was built from the tagged commit by the release workflow of this repository:
+Every release has a `SHA256SUMS` file, and the binary and the Debian package each have a build provenance attestation, which shows that the file was built from the tagged commit by the release workflow of this repository. The package contains exactly the binary released on its own.
 
 ```bash
-sha256sum -c SHA256SUMS
+sha256sum -c --ignore-missing SHA256SUMS
 gh attestation verify parity-<version>-x86_64-unknown-linux-musl --repo veedel-oss/parity
+gh attestation verify parity_<version>_amd64.deb --repo veedel-oss/parity
 ```

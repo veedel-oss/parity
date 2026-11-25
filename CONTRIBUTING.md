@@ -74,6 +74,19 @@ They need docker with access to `/dev/kvm`, plus `ssh`, `ssh-keygen`, `curl` and
 
 Shell scripts must pass `shellcheck` without findings. Disable a check only where the code is intended, on that line and with the reason, for example `# shellcheck disable=SC2016 # expands on the VM`.
 
+## Debian package
+
+The release builds the Debian package with [cargo-deb](https://github.com/kornelski/cargo-deb) (`.github/workflows/release.yml`), from the binary that CI and the e2e tests test; nothing else builds it. Its configuration is `[package.metadata.deb]` in `crates/parity/Cargo.toml`. To build it locally, with the cargo-deb version that `CARGO_DEB_VERSION` in the workflow names:
+
+```bash
+cargo install cargo-deb --version 3.8.0 --locked
+cargo build --release --locked --target x86_64-unknown-linux-musl
+cargo run --locked -p xtask -- gen-docs packaging/deb/generated
+cargo deb -p parity --target x86_64-unknown-linux-musl --no-build --no-strip
+```
+
+cargo-deb writes the package to `target/debian/` and prints its path. `crates/xtask` is a tool for the release, never shipped: it generates the man pages and shell completions from the help texts of the CLI. `packaging/deb/copyright` names the copyright holders and licenses of everything linked into the binary. CI checks that it lists exactly the crates linked into it, so a pull request that adds or removes a dependency of the binary updates the file too.
+
 ## Code guidelines
 
 - Collect mode must keep working on old kernels, down to Linux 3.2. Use newer system calls only with a fallback. The system calls it uses are listed in `docs/architecture.md`.

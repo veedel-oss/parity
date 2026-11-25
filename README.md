@@ -23,7 +23,7 @@ It also helps with infrastructure as code for existing systems: compare a legacy
 
 ## Status
 
-Parity is in early development and not usable yet. In the first release, the package comparison will support Debian-based systems only.
+Parity is in early development. The first release, 0.0.1, runs on x86_64 Linux, and its package comparison supports Debian-based systems only. It is tested on Debian 10 to 13, on the workstation as well as on the targets.
 
 ## How it works
 
@@ -36,6 +36,24 @@ Each target only needs the `parity` binary, a running SSH server and sudo or su.
 **Connection:** the CLI uses your system's `ssh` client and your existing SSH setup (keys, agent, password, ssh config). Encryption and host verification come from SSH. If sudo or su asks for a password, you type it into your terminal; it never passes through Parity.
 
 **Access:** only users who can become root on a target can inspect it with Parity. Parity adds no access of its own. Secrets such as `/etc/shadow` or SSH host keys are left out of reports by default.
+
+## Installation
+
+Install Parity on your workstation and on every machine you want to compare, in the same version everywhere. Each [release](https://github.com/veedel-oss/parity/releases) has two files:
+
+- `parity_<version>_amd64.deb`, the Debian package for Debian and its derivatives. It installs `/usr/bin/parity`, the man pages (`man parity-compare`) and completions for bash, zsh and fish:
+
+  ```bash
+  sudo apt install ./parity_<version>_amd64.deb
+  ```
+
+- `parity-<version>-x86_64-unknown-linux-musl`, the same static binary on its own, for any other Linux:
+
+  ```bash
+  sudo install -o root -g root -m 0755 parity-<version>-x86_64-unknown-linux-musl /usr/local/bin/parity
+  ```
+
+Parity refuses to start a binary as root that users other than root and the SSH user could change, so keep it in a directory such as `/usr/bin` or `/usr/local/bin`. [Verifying a release](SECURITY.md#verifying-a-release) shows how to check a download.
 
 ## Usage
 

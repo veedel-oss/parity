@@ -17,12 +17,13 @@ Parity compares two Linux machines and reports differences in files, configurati
 
 ## Workspace layout
 
-One binary, `parity`, with the subcommands `compare` (CLI) and `collect` (collect mode). The other crates are libraries linked into it, not separate programs.
+One binary, `parity`, with the subcommands `compare` (CLI) and `collect` (collect mode). The other crates are libraries linked into it, not separate programs, apart from the release tool `xtask`.
 
 - `crates/parity`: the binary, dispatches to collect mode or the CLI
 - `crates/parity-collect`: collect mode, runs as root on the target
 - `crates/parity-analyze`: CLI side: SSH, escalation, comparison, reports
 - `crates/parity-proto`: shared protocol types
+- `crates/xtask`: release tool, never shipped and not linked into `parity`: generates the man pages and shell completions of the Debian package from the CLI's clap definition (`cargo run -p xtask -- gen-docs DIR`). Not a default member of the workspace, so a plain `cargo build` leaves it out.
 
 `parity-collect` and `parity-analyze` never depend on each other. The binary hands over to `parity-collect` before any other argument parsing, so no CLI code runs as root.
 
