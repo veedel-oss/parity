@@ -69,7 +69,7 @@ Targets are ssh destinations (`host`, `user@host` or `ssh://[user@]host[:port]`)
 By default, `parity compare` compares the installed packages and the configuration directories `/etc` and `/usr/local/etc`, with a diff for every text file whose content differs. `--check` selects what to compare:
 
 ```bash
-# packages and the whole file system (without /proc, /sys, /dev, /run, temporary files, caches and logs)
+# packages and the whole file system, without the default excludes (see --no-default-excludes)
 parity compare --check packages,filesystem host-a host-b
 
 # other configuration directories
@@ -87,7 +87,7 @@ parity compare --become su host-a host-b
 | `--check LIST` | What to compare, comma separated: `packages`, `etc`, `filesystem`. Default: `packages,etc` |
 | `--etc-dirs PATHS` | Directories for `etc` instead of `/etc` and `/usr/local/etc`, comma separated |
 | `--exclude PATTERN` | Leave out a path and everything below it (`*` matches within a name, as in `/var/lib/*/tmp`), may be repeated |
-| `--no-default-excludes` | Also compare `/proc`, `/tmp`, caches, logs and the other default excludes of `filesystem` |
+| `--no-default-excludes` | Disables the default excludes [DEFAULT_FS_EXCLUDES](crates/parity-analyze/src/default.rs) of `filesystem` |
 | `--sensitive PATTERN` | Treat more paths as sensitive (`*` matches within a name), may be repeated |
 | `--reveal-sensitive-metadata` | Also report size, modification time and link target of sensitive paths. Their hash and content are never sent |
 | `--max-hash-size SIZE` | Larger files are compared by metadata only. Default: `64M` |

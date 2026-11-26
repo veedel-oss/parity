@@ -7,7 +7,6 @@ Milestones 1 (end-to-end skeleton), 2 (comparison of packages), 3 (comparison of
 ## Later
 
 - Package collection for more distributions beyond Debian.
-- Map UIDs and GIDs to names in the CLI from the collected `/etc/passwd` and `/etc/group`, so system users with different UIDs on two machines do not show up as differences.
 - Comparison against a saved snapshot instead of two live machines.
 - Export of differences as Ansible or Terraform code.
 - Smarter hashing on very large file systems (hash only files whose size matches on both sides, or in a second pass).

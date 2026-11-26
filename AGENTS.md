@@ -30,7 +30,7 @@ One binary, `parity`, with the subcommands `compare` (CLI) and `collect` (collec
 
 - Keep the dependency list of `parity-collect` short. Every dependency that runs as root needs a reason.
 - Collect mode must run on old kernels (down to the Rust minimum, currently 3.2): use newer system calls only with a fallback.
-- Collect mode does no name lookups. It sends UIDs and GIDs as numbers; mapping to names happens in the CLI.
+- Collect mode does no name lookups. It sends UIDs and GIDs as numbers.
 - Prefer calling the system `ssh` binary over embedding an SSH library, so the user's ssh config and agent apply.
 - No company-specific data, host names, IPs or configuration anywhere in the repository, including tests and git history.
 - All code is written from scratch for this repository.

@@ -16,13 +16,13 @@ Put the base first, so "only on <system>" lists what was added:
 parity compare base-vm legacy-host
 ```
 
-By default this compares installed packages and the configuration directories `/etc` and `/usr/local/etc`, including a diff for every text file whose content differs. To include the whole file system:
+By default this compares installed packages and the configuration directories (`/etc` and `/usr/local/etc`, or `--etc-dirs`), including a diff for every text file whose content differs. To include the whole file system:
 
 ```bash
 parity compare --check packages,filesystem base-vm legacy-host
 ```
 
-The file system comparison leaves out `/proc`, `/sys`, `/dev`, `/run`, temporary files, caches and logs. Add more excludes for paths that always differ and do not interest you:
+The `filesystem` comparison leaves out the [DEFAULT_FS_EXCLUDES](../crates/parity-analyze/src/default.rs), and `--no-default-excludes` disables those excludes. Add more excludes for paths that always differ and do not interest you:
 
 ```bash
 parity compare --check filesystem \

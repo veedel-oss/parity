@@ -37,7 +37,7 @@ Open an issue first for:
 - a new, renamed or removed command or option. The names are fixed since the first release, and renaming one breaks the scripts that use it.
 - support for a further distribution's package database. Collect mode sends the raw database files and the CLI parses them, as for dpkg today.
 
-Additions to the built-in list of sensitive paths (`crates/parity-collect/src/sensitive.rs`) and to the default excludes (`crates/parity-analyze/src/lib.rs`) are welcome as pull requests. Explain why the path holds secrets or always differs between machines.
+Additions to the built-in list of sensitive paths (`crates/parity-collect/src/sensitive.rs`) and to the default excludes [DEFAULT_FS_EXCLUDES](crates/parity-analyze/src/default.rs) are welcome as pull requests. Explain why the path holds secrets or always differs between machines.
 
 ## Development setup
 
@@ -86,7 +86,7 @@ It prints the path of the package, here `target/parity_<version>_amd64.deb`. The
 ## Code guidelines
 
 - Collect mode must keep working on old kernels, down to Linux 3.2. Use newer system calls only with a fallback. The system calls it uses are listed in `docs/architecture.md`.
-- Collect mode does no name lookups. It sends UIDs and GIDs as numbers, and the CLI maps them to names.
+- Collect mode does no name lookups. It sends UIDs and GIDs as numbers.
 - Never implement hashing, cryptography, random number generation or other security-relevant algorithms yourself. Use well-known, maintained crates (content hashes from `xxhash-rust`, random tokens from `rand`).
 - Write the code yourself for this repository. Do not copy code from other projects.
 - No company-specific data anywhere: no real host names, IP addresses, user names or configuration, not in code, tests, examples or commit messages. Use names like `host-a` or `vm1`, and the documentation addresses `192.0.2.0/24` and `example.com`.
