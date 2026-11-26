@@ -37,6 +37,8 @@ Each target only needs the `parity` binary, a running SSH server and sudo or su.
 
 **Access:** only users who can become root on a target can inspect it with Parity. Parity adds no access of its own. Secrets such as `/etc/shadow` or SSH host keys are left out of reports by default.
 
+**Content:** collect mode hashes every file with XXH3-128, a fast hash that is not cryptographic, and the CLI compares the hashes of the same path on both machines. That finds every accidental change, but it is no proof against tampering: someone who can write a file on one machine could shape it to hash like the file on the other. Parity is not an integrity checker.
+
 ## Installation
 
 Install Parity on your workstation and on every machine you want to compare, in the same version everywhere. Each [release](https://github.com/veedel-oss/parity/releases) has two files:
@@ -87,7 +89,7 @@ parity compare --become su host-a host-b
 | `--exclude PATTERN` | Leave out a path and everything below it (`*` matches within a name, as in `/var/lib/*/tmp`), may be repeated |
 | `--no-default-excludes` | Also compare `/proc`, `/tmp`, caches, logs and the other default excludes of `filesystem` |
 | `--sensitive PATTERN` | Treat more paths as sensitive (`*` matches within a name), may be repeated |
-| `--reveal-sensitive-metadata` | Also report size, modification time, link target and hash of sensitive paths. Their content is never sent |
+| `--reveal-sensitive-metadata` | Also report size, modification time and link target of sensitive paths. Their hash and content are never sent |
 | `--max-hash-size SIZE` | Larger files are compared by metadata only. Default: `64M` |
 | `--max-diff-size SIZE` | Larger files get no content diff. Default: `1M` |
 | `--no-diff` | No content diffs |

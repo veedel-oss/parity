@@ -249,10 +249,11 @@ fn walk_reports_metadata_hashes_and_links() {
     let a = find(&entries, &t.bytes("sub/a.conf"));
     assert_eq!(a.kind, FileKind::Regular);
     assert_eq!(a.size, Some(3));
-    let HashState::Sha256(h) = a.hash else {
-        panic!("{:?}", a.hash)
-    };
-    assert_eq!(h[..4], [0xba, 0x78, 0x16, 0xbf], "sha256 of abc");
+    assert_eq!(
+        a.hash,
+        HashState::Xxh3(0x06b05ab6733a618578af5f94892f3950u128.to_be_bytes()),
+        "XXH3-128 of abc, as xxhsum -H2 prints it"
+    );
     use std::os::unix::fs::MetadataExt;
     assert_eq!(
         a.uid,
@@ -386,7 +387,51 @@ fn walk_sensitive_metadata_opt_in() {
     let k = find(&entries, &t.bytes("secret/key"));
     assert!(k.sensitive);
     assert_eq!(k.size, Some(7));
-    assert!(matches!(k.hash, HashState::Sha256(_)));
+    // The opt-in covers metadata only, never the hash.
+    assert_eq!(k.hash, HashState::Withheld);
+}
+
+// Content of `n` bytes, the same as the files that gave the expected hashes.
+fn pattern(n: usize) -> Vec<u8> {
+    (0..n).map(|i| ((i * 31 + 7) % 251) as u8).collect()
+}
+
+#[test]
+fn walk_hashes_match_xxhsum() {
+    // XXH3-128 as `xxhsum -H2` (xxHash 0.8.4) prints it for pattern(n). The
+    // sizes cover each code path of XXH3-128 (up to 16, 128 and 240 bytes,
+    // and longer) and files read in more than one 64 KiB chunk.
+    let expected: [(usize, u128); 11] = [
+        (0, 0x99aa06d3014798d86001c324468d497f),
+        (3, 0x46f66cb93538156515f7093b173d005c),
+        (16, 0xda917c385cc874c00d463cb04ceffbaf),
+        (17, 0xd443578f2c4e2fb495c34448580e19c8),
+        (128, 0x22c34350373a38ae5b77925b2c683a12),
+        (129, 0xc4a7d8f7893f2090d6d9e73553568be1),
+        (240, 0xe29d70b8920fd24bc6ed4333f79384f8),
+        (241, 0xf91b3cb8ed0fa91a07525dbc14902c7f),
+        (1023, 0x0789e58514a0668bfe4f1eaedb87b59b),
+        (65543, 0x3a7f00e456967239fea72e2fe49764e3),
+        (300000, 0xe064c65f8982f7b5bd166ac77b8df711),
+    ];
+    let t = TempDir::new("xxhsum");
+    for (n, _) in expected {
+        std::fs::write(t.path(&format!("f{n}")), pattern(n)).unwrap();
+    }
+    let (entries, errors, _) = walk(WalkRequest {
+        roots: vec![t.bytes("")],
+        hash: true,
+        max_hash_size: 1 << 20,
+        ..Default::default()
+    });
+    assert!(errors.is_empty(), "{errors:?}");
+    for (n, h) in expected {
+        assert_eq!(
+            find(&entries, &t.bytes(&format!("f{n}"))).hash,
+            HashState::Xxh3(h.to_be_bytes()),
+            "{n} bytes"
+        );
+    }
 }
 
 #[test]

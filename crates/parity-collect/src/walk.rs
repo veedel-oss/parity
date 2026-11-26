@@ -5,7 +5,7 @@ use std::io;
 use std::os::fd::{AsRawFd, OwnedFd};
 
 use parity_proto::{Entry, ErrorKind, FileKind, HashState, Response, WalkRequest};
-use sha2::{Digest, Sha256};
+use xxhash_rust::xxh3::Xxh3;
 
 use crate::fs::{self, OpenError};
 use crate::pattern::{self, Pattern};
@@ -201,7 +201,10 @@ impl Walker<'_, '_> {
         };
         let hash = match (kind, at) {
             (FileKind::Regular, Some((dir, name))) if self.req.hash => {
-                if !reveal {
+                // Never for sensitive paths, not even with the metadata
+                // opt-in: XXH3 is not built to be hard to reverse, so the
+                // hash of a short secret could give the secret away.
+                if sensitive {
                     HashState::Withheld
                 } else if st.st_size as u64 > self.req.max_hash_size {
                     HashState::TooLarge
@@ -237,7 +240,7 @@ fn hash_file(dir: &OwnedFd, name: &CStr, max: u64, closed: fn() -> bool) -> Hash
         Err(OpenError::PseudoFs) => return HashState::PseudoFs,
         Err(OpenError::Io(e)) => return HashState::Error(e.to_string()),
     };
-    let mut h = Sha256::new();
+    let mut h = Xxh3::new();
     let mut chunks = 0u32;
     match fs::read_chunks(&mut file, max, 64 * 1024, |b| {
         h.update(b);
@@ -249,7 +252,7 @@ fn hash_file(dir: &OwnedFd, name: &CStr, max: u64, closed: fn() -> bool) -> Hash
         }
         Ok(())
     }) {
-        Ok(Ok(())) => HashState::Sha256(h.finalize().into()),
+        Ok(Ok(())) => HashState::Xxh3(h.digest128().to_be_bytes()),
         Ok(Err(OpenError::TooLarge(_))) => HashState::TooLarge,
         Ok(Err(OpenError::NotRegular)) => HashState::Error("not a regular file".into()),
         Ok(Err(OpenError::PseudoFs)) => HashState::PseudoFs,

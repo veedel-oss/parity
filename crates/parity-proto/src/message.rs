@@ -136,7 +136,9 @@ pub enum FileKind {
 pub enum HashState {
     // Not requested, or not a regular file.
     None,
-    Sha256([u8; 32]),
+    // XXH3-128 of the content, in its canonical byte order (as `xxhsum -H2`
+    // prints it). Not a cryptographic hash (see docs/architecture.md).
+    Xxh3([u8; 16]),
     TooLarge,
     // Sensitive path, hash withheld.
     Withheld,
@@ -374,7 +376,7 @@ fn encode_entry(e: &mut Encoder, x: &Entry) {
     e.opt(&x.rdev, |e, v| e.u64(*v));
     match &x.hash {
         HashState::None => e.u8(0),
-        HashState::Sha256(h) => {
+        HashState::Xxh3(h) => {
             e.u8(1);
             e.raw(h);
         }
@@ -402,7 +404,7 @@ fn decode_entry(d: &mut Decoder) -> Result<Entry, Error> {
         rdev: d.opt(|d| d.u64())?,
         hash: match d.u8()? {
             0 => HashState::None,
-            1 => HashState::Sha256(d.raw(32)?.try_into().expect("length checked")),
+            1 => HashState::Xxh3(d.raw(16)?.try_into().expect("length checked")),
             2 => HashState::TooLarge,
             3 => HashState::Withheld,
             4 => HashState::Error(d.str()?),
@@ -435,7 +437,7 @@ mod tests {
             mtime: Some((-1, 999_999_999)),
             link_target: None,
             rdev: Some(7),
-            hash: HashState::Sha256([9; 32]),
+            hash: HashState::Xxh3([9; 16]),
             sensitive: false,
         }
     }

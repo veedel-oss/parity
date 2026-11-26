@@ -17,7 +17,7 @@ pub use frame::{read_frame, write_frame};
 pub use message::*;
 
 // Protocol version. Increase on every incompatible change of a message.
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 
 // Marker at the start of every hello, so a peer that is not Parity (or a shell
 // printing a banner) is recognised as such.

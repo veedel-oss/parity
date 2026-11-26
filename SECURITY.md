@@ -29,7 +29,7 @@ This helps to judge whether something is a vulnerability. The details are in [do
 - The password for sudo or su never passes through Parity: the user types it on their own terminal. Anything that exposes it to Parity is a vulnerability.
 - Only a user who can become root on a target can inspect it. A way for anyone else to gain root, to take over a session, to replace the binary that is about to run as root, or to send requests to collect mode is a vulnerability.
 - Authentication, encryption and host verification come from the system's `ssh` and the user's ssh configuration. Parity adds no network service and needs no port forwarding.
-- The content of sensitive paths (for example `/etc/shadow` and SSH host keys) is never sent, and by default their size, modification time and hash are withheld too. A way to get the content of a sensitive file out of collect mode is a vulnerability. The list protects reports and terminals. It is not a boundary against the user running Parity, who can become root on the target anyway.
+- The content and the hash of sensitive paths (for example `/etc/shadow` and SSH host keys) are never sent, and by default their size and modification time are withheld too. A way to get the content or the hash of a sensitive file out of collect mode is a vulnerability. The list protects reports and terminals. It is not a boundary against the user running Parity, who can become root on the target anyway.
 
 Not vulnerabilities: what the user who can become root on the target can see by design, and the known limits listed in [docs/security-review.md](docs/security-review.md).
 

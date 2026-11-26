@@ -291,7 +291,7 @@ fn compare_pair(
             }
         }
         match (&x.hash, &y.hash) {
-            (HashState::Sha256(h1), HashState::Sha256(h2)) => {
+            (HashState::Xxh3(h1), HashState::Xxh3(h2)) => {
                 if h1 != h2 {
                     content_differs = true;
                     changes.push(Change {
@@ -532,7 +532,7 @@ mod tests {
             link_target: None,
             rdev: None,
             hash: if kind == FileKind::Regular {
-                HashState::Sha256([1; 32])
+                HashState::Xxh3([1; 16])
             } else {
                 HashState::None
             },
@@ -625,7 +625,7 @@ mod tests {
         x.mode = 0o600;
         x.uid = 5;
         x.size = Some(2);
-        x.hash = HashState::Sha256([2; 32]);
+        x.hash = HashState::Xxh3([2; 16]);
         x.mtime = Some((2, 0));
         let m = run(vec![x], vec![f("/etc/a")], &opts());
         let fields: Vec<_> = m.report.differences[0]
@@ -673,14 +673,14 @@ mod tests {
     fn sensitive_and_large_content_is_not_fetched() {
         let mut x = f("/etc/s");
         x.sensitive = true;
-        x.hash = HashState::Sha256([3; 32]);
+        x.hash = HashState::Xxh3([3; 16]);
         let mut y = f("/etc/s");
         y.sensitive = true;
         let mut big = f("/etc/t");
         big.size = Some(10 << 20);
-        big.hash = HashState::Sha256([3; 32]);
+        big.hash = HashState::Xxh3([3; 16]);
         let mut big2 = big.clone();
-        big2.hash = HashState::Sha256([4; 32]);
+        big2.hash = HashState::Xxh3([4; 16]);
         let m = run(vec![x, big], vec![y, big2], &opts());
         assert!(m.content_candidates.is_empty());
         assert_eq!(m.report.differences[0].content, Some(Content::Sensitive));

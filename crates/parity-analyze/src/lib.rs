@@ -201,7 +201,7 @@ struct CompareArgs {
     /// Further sensitive path (`*` matches within a name), may be repeated
     #[arg(long = "sensitive", value_name = "PATTERN")]
     sensitive: Vec<String>,
-    /// Also report size, modification time, link target and hash of sensitive paths (never their content)
+    /// Also report size, modification time and link target of sensitive paths (never their hash or content)
     #[arg(long)]
     reveal_sensitive_metadata: bool,
     /// Files larger than this are not hashed (suffixes K, M, G)
