@@ -52,7 +52,11 @@ def main():
     asked = 0
     next_poll = 0.0
     while True:
-        if interrupt is not None and asked >= len(passwords) and time.monotonic() >= next_poll:
+        if (
+            interrupt is not None
+            and asked >= len(passwords)
+            and time.monotonic() >= next_poll
+        ):
             next_poll = time.monotonic() + 0.2
             if ready(interrupt):
                 # Ctrl-C on the terminal: SIGINT to the foreground process group.
@@ -93,6 +97,7 @@ def ready(command):
         r = subprocess.run(
             command,
             shell=True,
+            check=False,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

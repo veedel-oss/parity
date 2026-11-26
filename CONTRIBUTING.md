@@ -72,6 +72,8 @@ They need docker with access to `/dev/kvm`, plus `ssh`, `ssh-keygen`, `curl` and
 
 Shell scripts must pass `shellcheck` without findings, with all optional checks enabled (`.shellcheckrc`, which shellcheck reads by itself); CI checks every `*.sh` file in the repository, so give shell scripts that extension. Disable a check only where the code is intended, on that line and with the reason, for example `# shellcheck disable=SC2016 # expands on the VM`.
 
+Python scripts must pass `ruff check` with its default rules and `ruff format --check`, in the ruff version that `.github/workflows/ci.yml` installs, since the default rules change between ruff releases. CI checks every `*.py` file in the repository. Disable a rule only where the code is intended, on that line and with the reason, for example `# noqa: S602 # the test passes a shell command`.
+
 ## Debian package
 
 The release builds the Debian package with `packaging/deb/build.sh` (`.github/workflows/release.yml`), from the binary that CI and the e2e tests test; nothing else builds it. The script packages a static binary as it is, with the changelog and the copyright file, and needs `dpkg-deb`, which comes with dpkg (on Debian and Ubuntu always installed, elsewhere usually as the package `dpkg`). To build it locally as the release does:
@@ -98,7 +100,7 @@ It prints the path of the package, here `target/parity_<version>_amd64.deb`. The
 - Branch from `main` and keep the history linear: rebase onto `main` instead of merging `main` into your branch.
 - Commit messages have a short subject in the imperative ("Match excludes as patterns") and a body that explains what changed and why, wrapped at 72 characters.
 - Describe how you tested the change, especially on real systems.
-- All checks must pass: formatting, clippy, shellcheck, the tests, the static builds and the e2e tests.
+- All checks must pass: formatting, clippy, shellcheck, ruff, the tests, the static builds and the e2e tests.
 
 ## License
 
