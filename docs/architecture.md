@@ -167,16 +167,47 @@ Implemented in `parity-proto` without dependencies.
 
 ## Comparison
 
-- Packages: read from the dpkg database, not by running dpkg on the target (collect mode runs no programs, and `dpkg-query` would change access times). The CLI requests `/var/lib/dpkg/status`, then walks `/var/lib/dpkg/updates` and reads its journal entries (files named only with digits, in name order); each record there replaces the package's record from the status database, as dpkg and `dpkg-query` apply pending entries after an interrupted run. Packages are keyed by name and architecture and reported as only on one side, or with a different version or `Status` field (want, error flag and state, so a package on hold on one side only is a difference). Packages in state `not-installed` are ignored. `parity packages` shows the status abbreviated as `dpkg -l` and `dpkg-query -f '${db:Status-Abbrev}'` do.
-- Files: both targets get the same roots, sorted and without nested roots, so both entry streams arrive in the same order and are merged like sorted lists. The CLI does not hold either tree in memory.
-- Compared per path: type, mode (including setuid, setgid, sticky), UID, GID, size (regular files), link target, device number, content hash (XXH3-128, with the `xxhash-rust` crate). Modification times are not compared by default, because they differ between any two installations; an option turns them on. Directory sizes are never compared.
-- Content hash: XXH3-128, which is not a cryptographic hash (decided 2026-11-26). Parity compares the same path on two machines, and it trusts root on both anyway: collect mode runs as root there, and whoever can change `/etc` or `/usr` can also change what collect mode reports. For finding changes, the chance that two different files at one path get the same 128-bit hash by accident is negligible (about 2⁻¹²⁸ per path). XXH3 is much faster than SHA-256 and needs no further crates on the root side. It does not resist deliberately crafted collisions: someone who can write a file on one machine could shape it to hash like the file on the other, and Parity would report both as identical. Parity is therefore no integrity checker. Because a hash that is not cryptographic may give away a short input, hashes of sensitive paths are never sent (see Decisions). The CLI shows the first 6 bytes of both hashes for a file whose content differs.
-- A directory present on one side only is reported once, with the number of entries below it.
-- Content diffs: only for regular files whose hashes differ, which are not sensitive and not larger than the diff size limit on either side. Contents are fetched in groups of 64 files from both targets in parallel. Text (valid UTF-8 without NUL bytes) gets a unified diff, anything else is reported as binary.
-- Default etc directories of the configuration comparison (`--check etc`), can be replaced by `--etc-dirs`.
-- Hashing on large file systems: every regular file up to the hash size limit (default 64 MiB) is hashed in one pass while walking; larger files are compared by metadata and listed as skipped. A smarter strategy (hash only where sizes match, or in a second pass) is possible later without protocol changes beyond a flag.
-- Errors for single paths (for example an I/O error while hashing) are listed and make the exit code 2, since the comparison is then incomplete. Vanished files are ignored.
-- Output: a report grouped by directory for people, JSON for scripts (`--format json`, paths converted lossily to UTF-8).
+The CLI compares what collect mode sends from both targets. `--check` chooses what: packages, configuration directories or the whole file system.
+
+### Packages
+
+Packages come from the dpkg database, not from running dpkg on the target: collect mode runs no programs, and `dpkg-query` would change access times. The CLI reads `/var/lib/dpkg/status`, then the pending journal entries in `/var/lib/dpkg/updates`, the files named only with digits, in name order. Each entry replaces the record of its package, as dpkg and `dpkg-query` apply them after an interrupted run.
+
+Packages are matched by name and architecture. A package differs if it is on one side only, or has another version or `Status` field. The `Status` field holds want, error flag and state, so a package on hold on one side only is a difference. Packages in state `not-installed` are left out. `parity packages` abbreviates the status as `dpkg -l` does.
+
+### Files
+
+`--check etc` walks `/etc` and `/usr/local/etc` (`DEFAULT_ETC_DIRS` in [default.rs](../crates/parity-analyze/src/default.rs)), unless `--etc-dirs` names others. `--check filesystem` walks `/` without the default excludes (`DEFAULT_FS_EXCLUDES`).
+
+Both targets get the same roots, sorted and without nested roots, so the two entry streams arrive in the same order and are merged like sorted lists. The CLI holds neither tree in memory.
+
+Compared for each path:
+
+| What | When |
+| --- | --- |
+| type, mode with setuid, setgid and sticky, UID, GID | always |
+| link target, device number | for symlinks and devices |
+| size | for regular files; directory sizes never |
+| content hash | for regular files up to `--max-hash-size`, hashed while walking; larger ones are compared by metadata and listed as skipped |
+| modification time | only with `--with-mtime`, since it differs between any two installations |
+
+A directory present on one side only is reported once, with the number of entries below it.
+
+### Content hash
+
+The content hash is XXH3-128 (`xxhash-rust`), which is not a cryptographic hash. Parity compares the same path on two machines whose root it trusts anyway: whoever can change `/etc` or `/usr` can also change what collect mode reports. The chance that two different files at one path get the same 128-bit hash by accident is about 2⁻¹²⁸. XXH3 is much faster than SHA-256 and needs no further crates on the root side.
+
+It does not resist deliberately crafted collisions: someone who can write a file on one machine could shape it to hash like the file on the other, and Parity would report both as identical. Parity is therefore no integrity checker. Hashes of sensitive paths are never sent (see Decisions). For a file whose content differs, the report shows the first 6 bytes of both hashes.
+
+### Content diffs
+
+Only regular files get a content diff: those whose hashes differ, that are not sensitive and not larger than `--max-diff-size` on either side. The CLI fetches their contents from both targets in parallel, in groups of 64 files. Text, that is valid UTF-8 without NUL bytes, gets a unified diff; anything else is reported as binary.
+
+### Errors and output
+
+An error for a single path, for example while hashing, is listed and makes the exit code 2, since the comparison is then incomplete. Files that vanish during the walk are ignored.
+
+The report for people is grouped by directory. `--format json` is for scripts; it converts paths to UTF-8, lossily.
 
 ## Command line
 
@@ -206,3 +237,4 @@ Fixed for the first release (decided 2026-11-24). Renaming or removing a command
 - How the binary gets onto the target: installed beforehand (current assumption) or copied for one run (which would write to the target).
 - Further architectures (see Decisions), and how the right binary for a target is chosen once there is more than one.
 - Package state collection beyond Debian.
+- Hashing on large file systems: hashing only where the sizes match, or in a second pass. It needs no protocol change beyond a flag.
