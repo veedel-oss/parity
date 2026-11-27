@@ -16,6 +16,6 @@ The static binary is installed in `/usr/local/bin` on both VMs and tested over r
 - two fresh installs compare as identical, and changes made to one show up
 - dpkg's journal
 - access times on ext4
-- no process left behind after errors and after Ctrl-C while hashing a 16 GB file
+- no process left behind after errors and after Ctrl-C while hashing a 64 GB file
 
 Older kernels down to Linux 3.2 are kept working by using only their system calls ([collect-mode.md](../../docs/collect-mode.md#minimum-kernel)), not by tests. There are no container tests: containers share the host kernel, so VMs cover everything they would.

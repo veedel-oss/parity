@@ -433,21 +433,23 @@ check_no_processes_left
 # Ctrl-C
 # ---------------------------------------------------------------------------
 
-# Ctrl-C while collect mode hashes a sparse file. It depends on timing, so not
-# finishing within interrupt_timeout is reported, but is no failure. The
-# subshell hands its failures back in a file; without it, a command failed.
+# Ctrl-C while collect mode hashes a sparse file, 64 GB so that hashing takes
+# seconds even with XXH3 and Ctrl-C arrives before it ends. It depends on
+# timing, so not finishing within interrupt_timeout is reported, but is no
+# failure. The subshell hands its failures back in a file; without it, a
+# command failed.
 interrupt_timeout=120
 (
     # shellcheck disable=SC2030 # counted here, added up below
     failures=0
     for vm in "${vms[@]}"; do
-        vroot "${vm}" 'truncate -s 16G /opt/big'
+        vroot "${vm}" 'truncate -s 64G /opt/big'
     done
     hashing="ssh -F ${work}/ssh_config root@vm1 'find /proc/[0-9]*/fd -lname /opt/big 2>/dev/null | grep -q .'"
     # 130: 128 + SIGINT.
     check "interrupt" 130 "" \
         --password testerpw --password testerpw --interrupt-when "${hashing}" \
-        -- compare --check filesystem --max-hash-size 32G vm1 vm2
+        -- compare --check filesystem --max-hash-size 128G vm1 vm2
     # The processes on the targets need a moment to exit.
     sleep 1
     check_no_processes_left
