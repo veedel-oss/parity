@@ -3,7 +3,7 @@
 # packaging/deb/build.sh BINARY OUTDIR
 #
 # Builds parity_<version>_amd64.deb in OUTDIR from the static BINARY and
-# prints its path: docs/architecture.md, Debian package.
+# prints its path: docs/maintaining.md, Debian package.
 
 set -euo pipefail
 
@@ -40,7 +40,7 @@ install -m 0644 "${root}/packaging/deb/copyright" "${doc}/copyright"
 
 install -d "${tree}/DEBIAN"
 (cd "${tree}" && find usr -type f -print0 | sort -z | xargs -0 md5sum) >"${tree}/DEBIAN/md5sums"
-# Why no Depends and no Debian revision: docs/architecture.md, Debian package.
+# Why no Depends and no Debian revision: docs/maintaining.md, Debian package.
 cat >"${tree}/DEBIAN/control" <<EOF
 Package: parity
 Version: ${version}

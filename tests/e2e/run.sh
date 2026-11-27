@@ -2,9 +2,8 @@
 #
 # Usage: tests/e2e/run.sh [--image-url] OS
 #
-# The e2e tests on two VMs (docs/architecture.md, Builds; CONTRIBUTING.md,
-# Tests). --image-url only prints the URL of the cloud image, for the cache
-# key in CI.
+# The e2e tests on two VMs (README.md next to this script). --image-url only
+# prints the URL of the cloud image, for the cache key in CI.
 
 set -euo pipefail
 

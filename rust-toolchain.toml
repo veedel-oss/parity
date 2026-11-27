@@ -1,4 +1,4 @@
-# The Rust version of every build: docs/architecture.md, Builds.
+# The Rust version of every build: docs/maintaining.md, Toolchain.
 [toolchain]
 channel = "1.100.1"
 profile = "minimal"

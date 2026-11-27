@@ -199,7 +199,7 @@ impl ConnArgs {
     }
 }
 
-// See docs/architecture.md, Shell completions.
+// See docs/architecture.md, Command line.
 fn completion(shell: Shell) -> Vec<u8> {
     let generator = match shell {
         Shell::Bash => clap_complete::Shell::Bash,

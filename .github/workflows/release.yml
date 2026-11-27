@@ -1,6 +1,6 @@
 name: Release
 
-# A draft release for a v* tag: docs/architecture.md, Releases.
+# A draft release for a v* tag: docs/maintaining.md, Releases.
 on:
   push:
     tags: ['v*']

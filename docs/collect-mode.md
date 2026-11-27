@@ -25,3 +25,7 @@ The holder refuses to start if a third user could replace the binary that is abo
 ## End of a session
 
 Collect mode exits on the end of its input and on a failed write. During a walk it also polls stdout for a hangup after every entry and every 16 MiB while hashing, and ends the walk.
+
+## Minimum kernel
+
+The Rust documentation states no separate minimum for the musl targets (musl 1.2.5 is linked in). The baseline of the Rust standard library is the one stated for the gnu target: Linux 3.2 for x86_64. Collect mode uses only system calls that exist there, listed in [architecture.md](architecture.md#collect-mode-details).
