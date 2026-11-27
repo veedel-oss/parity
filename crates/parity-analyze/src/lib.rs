@@ -564,4 +564,41 @@ mod tests {
         };
         assert!(file_options(&a).unwrap_err().0.contains("--etc-dirs"));
     }
+
+    #[test]
+    fn connection_options() {
+        let Cmd::Compare(a) = parse(&[
+            "compare",
+            "--become",
+            "su",
+            "--parity-path",
+            "/opt/parity",
+            "--ssh-config",
+            "/c",
+            "--ssh-option",
+            "A=b",
+            "--no-diff",
+            "a",
+            "b",
+        ])
+        .unwrap()
+        .cmd
+        else {
+            panic!()
+        };
+        let o = a.conn.options();
+        assert_eq!(o.become_, Become::Su);
+        assert_eq!(o.parity_path, "/opt/parity");
+        assert_eq!(o.ssh_config, Some("/c".into()));
+        assert_eq!(o.ssh_options, ["A=b"]);
+        assert!(!file_options(&a).unwrap().unwrap().content);
+        let Cmd::Compare(a) = parse(&["compare", "--become", "none", "a", "b"])
+            .unwrap()
+            .cmd
+        else {
+            panic!()
+        };
+        assert_eq!(a.conn.options().become_, Become::None);
+        assert!(file_options(&a).unwrap().unwrap().content);
+    }
 }

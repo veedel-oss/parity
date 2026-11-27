@@ -593,6 +593,23 @@ mod tests {
         assert_eq!(parse_hold_line("PARITY-HOLD 1 0.1.0 x 2f"), None);
         assert_eq!(parse_hold_line("PARITY-HOLD 1 0.1.0 1 2"), None);
         assert_eq!(parse_hold_line("hello"), None);
+        assert_eq!(parse_hold_line("PARITY-HOLD 1 0.1.0 1 2f x"), None);
+    }
+
+    #[test]
+    fn become_names() {
+        let names = [Become::Sudo, Become::Su, Become::None].map(Become::name);
+        assert_eq!(names, ["sudo", "su", "none"]);
+    }
+
+    #[test]
+    fn parity_paths() {
+        for p in ["parity", "/usr/bin/parity", "/opt/my parity"] {
+            assert!(validate_parity_path(p).is_ok(), "{p:?}");
+        }
+        for p in ["", "-x", "/bin/a\nb"] {
+            assert!(validate_parity_path(p).is_err(), "{p:?}");
+        }
     }
 
     #[test]
@@ -625,5 +642,10 @@ mod tests {
         );
         let root = vec!["parity collect: must run as root".to_string()];
         assert!(classify_exit("h", &o, st(1), &root).0.contains("--become"));
+        let other = vec!["parity collect: something else".to_string()];
+        assert_eq!(
+            classify_exit("h", &o, st(1), &other).to_string(),
+            "parity on h ended with exit status 1; see the messages above"
+        );
     }
 }
