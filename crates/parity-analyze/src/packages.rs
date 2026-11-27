@@ -293,6 +293,16 @@ Architecture: all
         );
         assert_eq!(s("deinstall ok config-files").abbrev(), "rc");
         assert_eq!(s("install reinstreq half-installed").abbrev(), "iHR");
+        for (status, abbrev) in [
+            ("purge ok not-installed", "pn"),
+            ("install ok unpacked", "iU"),
+            ("install ok half-configured", "iF"),
+            ("install ok triggers-awaited", "iW"),
+            ("install ok triggers-pending", "it"),
+            ("unknown ok not-installed", "un"),
+        ] {
+            assert_eq!(s(status).abbrev(), abbrev, "{status}");
+        }
     }
 
     #[test]
@@ -323,5 +333,9 @@ Architecture: all
         );
         assert_eq!(d.changed[1].b.status.note().as_deref(), Some("hold"));
         assert!(compare(&a, &a).is_empty());
+        for (a, b) in [(&a[..1], &[][..]), (&[][..], &a[..1])] {
+            assert!(!compare(a, b).is_empty());
+        }
+        assert!(!compare(&a[1..2], &b[1..2]).is_empty());
     }
 }

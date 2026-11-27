@@ -108,12 +108,8 @@ fn table(o: &mut String, rows: &[Vec<String>]) {
         .collect();
     for r in rows {
         let mut line = String::from("  ");
-        for (i, cell) in r.iter().enumerate() {
-            if i + 1 == r.len() {
-                line.push_str(cell);
-            } else {
-                let _ = write!(line, "{cell:<w$}  ", w = widths[i]);
-            }
+        for (cell, w) in r.iter().zip(&widths) {
+            let _ = write!(line, "{cell:<w$}  ");
         }
         let _ = writeln!(o, "{}", line.trim_end());
     }
@@ -385,5 +381,152 @@ mod tests {
         assert_eq!(v["files"]["differences"][0]["path"], "/etc/a");
         assert_eq!(v["files"]["differences"][0]["content"]["status"], "diff");
         assert!(v["files"]["differences"][0].get("raw_path").is_none());
+    }
+
+    fn pkg(name: &str, version: &str, status: &str) -> Package {
+        let mut w = status.split(' ').map(String::from);
+        Package {
+            name: name.into(),
+            arch: "amd64".into(),
+            version: version.into(),
+            status: crate::packages::Status {
+                want: w.next().unwrap(),
+                flag: w.next().unwrap(),
+                state: w.next().unwrap(),
+            },
+        }
+    }
+
+    #[test]
+    fn text_packages_table() {
+        let ok = "install ok installed";
+        let a = [
+            pkg("bash", "5.2", ok),
+            pkg("curl", "8.0", ok),
+            pkg("vim", "9.0", ok),
+        ];
+        let b = [
+            pkg("bash", "5.2", ok),
+            pkg("curl", "8.1", "hold ok installed"),
+            pkg("nano", "7.0", ok),
+        ];
+        let p = crate::packages::compare(&a, &b);
+        let s = Report::new(t(), Some(p), None, vec!["one note".into()]).text();
+        assert_eq!(
+            s,
+            "Comparing host-a (a) with host-b (b)
+Note: one note
+
+Packages: 3 differences
+  PACKAGE  ARCH   host-a (a)  host-b (b)
+  curl     amd64  8.0         8.1 (hold)
+  nano     amd64  -           7.0
+  vim      amd64  9.0         -
+
+Result: differences found
+"
+        );
+        let one = crate::packages::compare(&a[..1], &[]);
+        let s = Report::new(t(), Some(one), None, vec![]).text();
+        assert!(s.contains("Packages: 1 difference\n"), "{s}");
+        let none = crate::packages::compare(&a, &a);
+        let s = Report::new(t(), Some(none), None, vec![]).text();
+        assert!(
+            s.contains("Packages: identical\n\nResult: identical\n"),
+            "{s}"
+        );
+    }
+
+    #[test]
+    fn text_files_all_parts() {
+        let mut only = diff("/etc/only");
+        only.presence = Presence::OnlyA;
+        only.kind = "directory";
+        only.entries_below = Some(1);
+        only.changes.clear();
+        only.content = None;
+        let mut root = diff("/");
+        root.presence = Presence::OnlyB;
+        root.changes.clear();
+        root.content = Some(Content::Binary);
+        let mut many = diff("/etc/many");
+        many.entries_below = Some(2);
+        many.changes.clear();
+        many.content = Some(Content::Unavailable {
+            reason: "gone".into(),
+        });
+        let mut big = diff("/etc/big");
+        big.changes.clear();
+        big.content = Some(Content::TooLarge);
+        let mut secret = diff("/etc/secret");
+        secret.changes.clear();
+        secret.content = Some(Content::Sensitive);
+        let err = FileError {
+            target: "host-a".into(),
+            path: "/etc/x".into(),
+            message: "I/O error".into(),
+        };
+        let mut f = files(
+            vec![root, diff("/etc/a"), big, many, only, secret],
+            vec![err],
+        );
+        f.excludes = vec!["/etc/skip".into(), "/etc/tmp".into()];
+        let s = Report::new(t(), None, Some(f), vec![]).text();
+        assert_eq!(
+            s,
+            "Comparing host-a (a) with host-b (b)
+
+Files below /etc: 6 differences
+/
+  only on host-b  file       /
+      binary files differ
+/etc
+  changed         file       a
+      mode: 0644 -> 0600
+      --- a
+      +++ b
+      -x
+      +y
+  changed         file       big
+      content differs, too large for a diff
+  changed         file       many (and 2 entries below)
+      content differs, no diff: gone
+  only on host-a  directory  only (and 1 entry below)
+  changed         file       secret
+      content differs, sensitive path: no diff
+
+Skipped on purpose (1):
+  /etc/shadow: sensitive
+
+Excluded: /etc/skip, /etc/tmp
+
+Errors (1):
+  [host-a] /etc/x: I/O error
+
+Result: comparison incomplete, see the errors above
+"
+        );
+        let mut f = files(vec![], vec![]);
+        f.skipped.clear();
+        let s = Report::new(t(), None, Some(f), vec![]).text();
+        assert!(
+            s.ends_with("Files below /etc: identical\n\nResult: identical\n"),
+            "{s}"
+        );
+    }
+
+    #[test]
+    fn package_list() {
+        let list = [
+            pkg("bash", "5.2", "install ok installed"),
+            pkg("libreoffice", "7.4", "deinstall ok config-files"),
+        ];
+        assert_eq!(
+            packages_text(&list),
+            "  STATUS  PACKAGE      ARCH   VERSION
+  ii      bash         amd64  5.2
+  rc      libreoffice  amd64  7.4
+"
+        );
     }
 }
