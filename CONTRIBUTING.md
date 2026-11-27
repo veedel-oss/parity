@@ -56,6 +56,8 @@ cargo test --workspace --locked
 cargo build --release --locked --target x86_64-unknown-linux-musl
 ```
 
+`make check` runs all checks of CI, including shellcheck, ruff and the dependency checks, and fails on warnings as CI does. `make help` lists the single steps, such as `make fmt`, `make lint`, `make test` and `make static`.
+
 ## Tests
 
 - Unit tests are pure. They get what they need (paths, UIDs, metadata, file system types) passed in or mocked, and never depend on the system that runs them.
@@ -83,7 +85,9 @@ cargo build --release --locked --target x86_64-unknown-linux-musl
 packaging/deb/build.sh target/x86_64-unknown-linux-musl/release/parity target/
 ```
 
-It prints the path of the package, here `target/parity_<version>_amd64.deb`. The version is the one the binary reports, and all file times are the time of the commit (or `SOURCE_DATE_EPOCH`), so the same commit gives the same package. `packaging/deb/copyright` names the copyright holders and licenses of everything linked into the binary. CI checks that it lists exactly the crates linked into it, so a pull request that adds or removes a dependency of the binary updates the file too.
+`make build-deb` runs both steps without `dpkg-deb` on the host: it builds the binary on the host and runs only `build.sh` in a Debian container (`packaging/deb/Dockerfile`), so it needs docker.
+
+The script prints the path of the package, here `target/parity_<version>_amd64.deb`. The version is the one the binary reports, and all file times are the time of the commit (or `SOURCE_DATE_EPOCH`), so the same commit gives the same package. `packaging/deb/copyright` names the copyright holders and licenses of everything linked into the binary. CI checks that it lists exactly the crates linked into it, so a pull request that adds or removes a dependency of the binary updates the file too.
 
 ## Code guidelines
 

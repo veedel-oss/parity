@@ -37,3 +37,13 @@ updates:
       interval: daily
     cooldown:
       default-days: 7
+
+  # The base image of the container that builds the Debian package locally
+  # (packaging/deb/Dockerfile, make build-deb), pinned by digest like the
+  # one above.
+  - package-ecosystem: docker
+    directory: /packaging/deb
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
