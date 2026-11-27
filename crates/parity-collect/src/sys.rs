@@ -1,11 +1,5 @@
-//! Thin wrappers around the system calls collect mode needs.
-//!
-//! Only calls that exist on Linux 3.2 are used: `openat`, `newfstatat`,
-//! `readlinkat`, `getdents` through `readdir`. Every open uses `O_NOFOLLOW`.
-//! Every open that reads uses `O_NOATIME`, directories only passed through
-//! use `O_PATH` (Linux 2.6.39), so symlinks are never followed and access times never
-//! change. There is no fallback without `O_NOATIME`: a file that cannot be
-//! read without changing its access time is reported as an error.
+//! Thin wrappers around the system calls of collect mode:
+//! `docs/architecture.md`, Collect mode details.
 
 use std::ffi::{CStr, CString};
 use std::io;
@@ -158,8 +152,8 @@ unsafe fn errno_location() -> *mut libc::c_int {
     unsafe { libc::__errno_location() }
 }
 
-// Raises the soft limit of open files to the hard limit, so deep trees can
-// be walked with one descriptor per level. Affects only this process.
+// To the hard limit, so deep trees can be walked with one descriptor per
+// level.
 pub fn raise_fd_limit() {
     let mut lim = libc::rlimit {
         rlim_cur: 0,

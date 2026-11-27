@@ -1,7 +1,5 @@
 //! Collect mode: runs as root on the target, reads requests from stdin,
-//! answers on stdout, logs to stderr and exits. Strictly read-only: it opens
-//! files only for reading, with `O_NOATIME` and without following symlinks,
-//! and writes nothing but protocol messages and logs.
+//! answers on stdout, logs to stderr and exits. Read-only (AGENTS.md).
 
 use std::ffi::OsString;
 use std::io::{BufReader, BufWriter};
@@ -19,10 +17,8 @@ mod walk;
 
 pub use attach::valid_nonce;
 
-// Checks that collect mode runs as root. Takes the effective UID so tests can
-// check both outcomes. Like all messages of collect mode, the error names no
-// UID: they are not secret, but output gets passed on (logs, bug reports),
-// and CodeQL counts UIDs in output as account information.
+// Takes the effective UID, so tests can check both outcomes. Messages name
+// no UID: output gets passed on, and CodeQL counts UIDs as account data.
 pub fn require_root(euid: u32) -> Result<(), String> {
     if euid == 0 {
         Ok(())
@@ -31,8 +27,7 @@ pub fn require_root(euid: u32) -> Result<(), String> {
     }
 }
 
-// Entry point of `parity collect`, called by the binary before any other
-// argument parsing. Returns the exit code.
+// Called by the binary before any other argument parsing.
 pub fn main(args: &[OsString]) -> i32 {
     match run(args, sys::euid()) {
         Ok(()) => 0,

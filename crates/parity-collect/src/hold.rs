@@ -1,15 +1,11 @@
-//! `parity hold <nonce>`: the unprivileged half of an escalated session (see
-//! [`crate::attach`]). Prints one line and then keeps stdin, stdout and
-//! stderr open without reading or writing them, until the SSH session ends.
+//! `parity hold <nonce>`, the unprivileged half of an escalated session:
+//! `docs/architecture.md`, Connection model.
 
 use std::ffi::OsString;
 use std::io::Write;
 
 use crate::attach::valid_nonce;
 
-// Prefix of the line the holder prints. The line continues with the
-// protocol version, the program version, the PID and the path of the binary
-// in hex, separated by spaces.
 pub const PREFIX: &str = "PARITY-HOLD";
 
 pub fn main(args: &[OsString]) -> i32 {
@@ -62,7 +58,7 @@ struct PathInfo {
 }
 
 // The CLI runs this very binary as root next. Refuse if a third user could
-// replace it (see [`check_chain`]).
+// replace it.
 fn check_safe_path(exe: &std::path::Path) -> Result<(), String> {
     use std::os::unix::fs::MetadataExt;
     let mut chain = Vec::new();
@@ -80,11 +76,7 @@ fn check_safe_path(exe: &std::path::Path) -> Result<(), String> {
     check_chain(exe, &chain, unsafe { libc::getuid() })
 }
 
-// The binary and every directory above it must belong to root or the user
-// `uid` and must not be writable by others (directories with the sticky bit
-// excepted, there only the owner of an entry can replace it). Group write
-// is accepted: Debian ships `/usr/local/bin` as `root:staff` 2775, and
-// sudo's `secure_path` trusts it the same way.
+// The rules: docs/architecture.md, Connection model.
 fn check_chain(exe: &std::path::Path, chain: &[PathInfo], uid: u32) -> Result<(), String> {
     for p in chain {
         let writable = p.mode & 0o002 != 0;

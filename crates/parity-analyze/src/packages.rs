@@ -84,11 +84,8 @@ pub fn is_journal_entry(name: &[u8]) -> bool {
     !name.is_empty() && name.iter().all(u8::is_ascii_digit)
 }
 
-// The installed packages as dpkg sees them: the status database with the
-// pending journal entries from `/var/lib/dpkg/updates` applied in order, as
-// dpkg-query does. Each journal record replaces the record of that package.
-// Packages in state `not-installed` are left out. Sorted by name and
-// architecture.
+// As dpkg-query sees them: each journal entry, in order, replaces the record
+// of its package. Without `not-installed`, sorted by name and architecture.
 pub fn parse_database(status: &[u8], updates: &[Vec<u8>]) -> Vec<Package> {
     let mut db = BTreeMap::new();
     for data in std::iter::once(status).chain(updates.iter().map(Vec::as_slice)) {

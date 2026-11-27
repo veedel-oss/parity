@@ -10,7 +10,6 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # Warnings fail the build.
   CARGO_BUILD_WARNINGS: deny
 
 jobs:
@@ -20,9 +19,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: shellcheck
-        # Every shell script, without findings, with the optional checks
-        # that .shellcheckrc enables. A check is disabled only on the line it
-        # concerns, with the reason (AGENTS.md).
         run: |
           shellcheck --version
           git ls-files -z '*.sh' | xargs -0 shellcheck
@@ -78,9 +74,7 @@ jobs:
             fi
           done
       - name: check the copyright file of the Debian package
-        # packaging/deb/copyright must list exactly the crates linked into the
-        # release binary, one "Files: vendor/<crate>/*" each. Crates of this
-        # workspace have a path in parentheses, the others do not.
+        # Crates of this workspace have a path in parentheses.
         run: |
           linked=$(cargo tree --locked -p parity --target x86_64-unknown-linux-musl \
               -e normal,no-proc-macro --prefix none --format '{p}' |

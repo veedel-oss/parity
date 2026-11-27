@@ -1,23 +1,5 @@
-//! Transport: runs the system `ssh` binary and starts collect mode on the
-//! target, with privilege escalation by sudo or su.
-//!
-//! With `--become none` there is one SSH session running `parity collect`;
-//! the protocol runs over its stdin and stdout.
-//!
-//! With sudo or su there are two sessions over one SSH connection (OpenSSH
-//! connection multiplexing with a private control socket):
-//!
-//! 1. The protocol session runs `parity hold <nonce>` without privileges. It
-//!    prints its PID, protocol version and the path of the binary, then keeps
-//!    the session open without reading it.
-//! 2. The escalation session runs `sudo <path> collect --attach <pid>
-//!    <nonce>` (or the same with su) on a terminal. Its stdin, stdout and
-//!    stderr are the user's terminal, so sudo or su prompts there and the
-//!    user types the password into ssh directly. Parity never sees it.
-//!    Collect mode attaches to the holder's stdin and stdout and detaches;
-//!    the escalation session ends.
-//!
-//! The CLI then speaks the protocol over the first session.
+//! Runs the system `ssh` and starts collect mode on the target, with sudo or
+//! su: `docs/architecture.md`, Connection model.
 
 use std::ffi::{OsStr, OsString};
 use std::io::{BufRead, BufReader, BufWriter, Read};
@@ -53,13 +35,9 @@ impl Become {
 #[derive(Debug, Clone)]
 pub struct SshOptions {
     pub become_: Become,
-    // Path or command name of `parity` on the target.
     pub parity_path: String,
-    // Passed to ssh as `-F`.
     pub ssh_config: Option<PathBuf>,
-    // Passed to ssh as `-o`.
     pub ssh_options: Vec<String>,
-    // The ssh program, `ssh` from `PATH` by default.
     pub ssh_program: OsString,
 }
 
@@ -75,8 +53,7 @@ impl Default for SshOptions {
     }
 }
 
-// Checks a target. Targets are ssh destinations passed on unchanged; one
-// starting with `-` could be read as an ssh option and is rejected.
+// One starting with `-` could be read as an ssh option.
 pub fn validate_target(t: &str) -> Result<()> {
     if t.is_empty() {
         bail!("empty target");
@@ -204,8 +181,6 @@ impl Drop for ControlPath {
     }
 }
 
-// Random alphanumeric token: a CSPRNG seeded from the operating system's
-// random source, both from the rand crate.
 pub fn random_token(n: usize) -> Result<String> {
     let rng = StdRng::try_from_rng(&mut SysRng)
         .map_err(|e| Error(format!("cannot get random numbers from the system: {e}")))?;
@@ -281,8 +256,7 @@ fn version_mismatch(target: &str, protocol: u32, version: &str) -> Error {
 }
 
 impl Connection {
-    // Connects to a target and starts collect mode. With sudo or su, the
-    // password prompt (if any) appears on the terminal.
+    // With sudo or su, the password prompt (if any) appears on the terminal.
     pub fn open(target: &str, opts: &SshOptions) -> Result<Connection> {
         validate_target(target)?;
         validate_parity_path(&opts.parity_path)?;
@@ -419,8 +393,6 @@ impl Connection {
         bail!("no answer from parity on {}", self.target)
     }
 
-    // Builds the error for a session that ended before collect mode
-    // answered, from the exit status and what the target printed.
     fn ended_early(&mut self) -> Error {
         drop(self.stdin.take());
         let status = self.child.wait().ok();
@@ -513,8 +485,7 @@ impl Drop for Connection {
     }
 }
 
-// Turns the exit of an ssh session that ended too early into an error
-// message with a hint.
+// The error, with a hint, for an ssh session that ended too early.
 pub fn classify_exit(
     target: &str,
     opts: &SshOptions,

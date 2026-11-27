@@ -1,6 +1,4 @@
-# The Rust version of every build: CI, e2e tests, release and local
-# development. rustup installs it with these components and targets.
-# Dependabot proposes updates (.github/dependabot.yml).
+# The Rust version of every build: docs/architecture.md, Builds.
 [toolchain]
 channel = "1.100.0"
 profile = "minimal"

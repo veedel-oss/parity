@@ -2,15 +2,8 @@
 #
 # packaging/deb/build.sh BINARY OUTDIR
 #
-# Builds the Debian package parity_<version>_amd64.deb in OUTDIR from the
-# static parity binary BINARY, as the release does
-# (.github/workflows/release.yml), and prints its path. The package holds
-# that binary as it is, as /usr/bin/parity, the changelog and the copyright
-# file; its version is the one the binary reports. All file times are
-# SOURCE_DATE_EPOCH, by default the time of the commit, so the same commit
-# gives the same package.
-#
-# Needs dpkg-deb, which comes with dpkg.
+# Builds parity_<version>_amd64.deb in OUTDIR from the static BINARY and
+# prints its path: docs/architecture.md, Debian package.
 
 set -euo pipefail
 
@@ -47,11 +40,7 @@ install -m 0644 "${root}/packaging/deb/copyright" "${doc}/copyright"
 
 install -d "${tree}/DEBIAN"
 (cd "${tree}" && find usr -type f -print0 | sort -z | xargs -0 md5sum) >"${tree}/DEBIAN/md5sums"
-# No Depends or Recommends: the binary is static, and the workstation needs
-# an ssh client while a target needs an SSH server and sudo or su, which one
-# package for both roles cannot express. No maintainer scripts, conffiles or
-# services: installing configures nothing, and removing leaves nothing behind.
-# The version has no Debian revision, since releases are immutable.
+# Why no Depends and no Debian revision: docs/architecture.md, Debian package.
 cat >"${tree}/DEBIAN/control" <<EOF
 Package: parity
 Version: ${version}

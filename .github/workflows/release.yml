@@ -1,12 +1,6 @@
 name: Release
 
-# Pushing a tag v<version> builds the static binary and the Debian package
-# made from it, attests their provenance and creates a draft GitHub release
-# with them, which the maintainer publishes.
-# Only organisation owners can push v* tags (tag ruleset in the repository
-# settings), and the release job waits for approval in the environment "release".
-# Tag only a commit on main on which ci.yml and e2e.yml have passed; this
-# workflow does not run the tests again.
+# A draft release for a v* tag: docs/architecture.md, Releases.
 on:
   push:
     tags: ['v*']
@@ -16,14 +10,12 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # Warnings fail the build.
   CARGO_BUILD_WARNINGS: deny
   # Only the architecture the e2e tests run on is released.
   TARGET: x86_64-unknown-linux-musl
 
 jobs:
-  # Runs the code of the project and of its dependencies (build scripts), so
-  # it gets read access only, no OIDC token, and keeps no credentials.
+  # Runs code of the dependencies: read access only, no credentials.
   build:
     name: build the release binary and the Debian package
     runs-on: ubuntu-26.04
@@ -32,8 +24,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Rust
-        # The version and targets from rust-toolchain.toml, so the release is
-        # built with the toolchain the e2e tests ran with.
+        # The toolchain of rust-toolchain.toml.
         run: rustup toolchain install
       - name: cargo build
         run: cargo build --release --locked --target "$TARGET"
@@ -49,9 +40,7 @@ jobs:
           mkdir dist
           cp "$bin" "dist/parity-$version-$TARGET"
       - name: check the changelog against the tag
-        # The section of the version is headed "## <version> (unreleased)"
-        # until the release. The tagged commit must have dropped the marker,
-        # which stops the release here, before the approval.
+        # The tagged commit must have dropped "(unreleased)" from the heading.
         run: |
           heading="## ${GITHUB_REF_NAME#v}"
           if ! grep -qxF "$heading" CHANGELOG.md; then
@@ -59,10 +48,6 @@ jobs:
             exit 1
           fi
       - name: build the Debian package
-        # packaging/deb/build.sh, as locally: dpkg-deb packages the binary
-        # built and checked above as it is, with the changelog and the
-        # copyright file. The file times in the package are the time of the
-        # tagged commit.
         run: packaging/deb/build.sh "dist/parity-${GITHUB_REF_NAME#v}-$TARGET" dist
       - name: check the package against the tag and the binary
         run: |
@@ -74,7 +59,7 @@ jobs:
             echo "::error::package version $(dpkg-deb --field "$deb" Version) does not match tag $GITHUB_REF_NAME"
             exit 1
           fi
-          # xz, because dpkg before 1.21.18 (Debian 10 and 11) cannot unpack zstd.
+          # xz for old dpkg (packaging/deb/build.sh).
           ar t "$deb" | grep -qx data.tar.xz
           # The package holds exactly the binary that is released on its own.
           dpkg-deb --fsys-tarfile "$deb" | tar -xO ./usr/bin/parity | cmp - "dist/parity-$version-$TARGET"
@@ -86,8 +71,7 @@ jobs:
           # Long enough for the approval of the release job.
           retention-days: 7
 
-  # Runs no code of the project. Holds the permissions to attest and to
-  # create the release, and starts only after approval in the environment.
+  # Runs no code of the project; starts only after approval.
   release:
     name: attest and create the draft release
     needs: build

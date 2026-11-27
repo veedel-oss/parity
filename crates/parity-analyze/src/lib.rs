@@ -1,8 +1,5 @@
-//! CLI side: SSH, privilege escalation, comparison and reports. Runs without
-//! special privileges on the workstation.
-//!
-//! The command line is described in `docs/architecture.md` (Command line).
-//! Renaming or removing a command or option breaks scripts that use it.
+//! CLI side: SSH, privilege escalation, comparison and reports, without
+//! special privileges. The command line: `docs/architecture.md`, Command line.
 
 use std::ffi::OsString;
 use std::io::Write;
@@ -202,11 +199,7 @@ impl ConnArgs {
     }
 }
 
-// The completion script for `shell`, as `parity completion` prints it.
-// Rendered from the clap definition of the CLI, so it always matches the
-// help texts. `collect` and `hold` are not part of it: the binary hands them
-// over to collect mode before the CLI parses anything
-// (crates/parity/src/main.rs).
+// See docs/architecture.md, Shell completions.
 fn completion(shell: Shell) -> Vec<u8> {
     let generator = match shell {
         Shell::Bash => clap_complete::Shell::Bash,
@@ -220,7 +213,6 @@ fn completion(shell: Shell) -> Vec<u8> {
     script
 }
 
-// Entry point of the CLI. Returns the exit code.
 pub fn main(args: Vec<OsString>) -> i32 {
     let cli = match Cli::try_parse_from(std::iter::once(OsString::from("parity")).chain(args)) {
         Ok(c) => c,
@@ -519,8 +511,7 @@ mod tests {
                     checked += 1;
                 }
             }
-            // The shells after `parity completion`. clap_complete's fish
-            // script completes no positional arguments.
+            // clap_complete's fish script completes no positional arguments.
             if shell != Shell::Fish {
                 assert!(script.contains("bash fish zsh"), "{shell:?}");
             }

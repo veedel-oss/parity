@@ -1,17 +1,4 @@
-//! Sensitive paths. For these, collect mode reports only existence, type,
-//! mode, owner and group, unless the CLI opts in to more metadata. Their
-//! content is never sent.
-//!
-//! A path is sensitive if one of the patterns covers it, that is if it
-//! matches a pattern or lies below a path that does (see [`crate::pattern`]).
-//!
-//! A hard link elsewhere to a sensitive file is sensitive too: when the list
-//! is built, collect mode notes device and inode of every sensitive regular
-//! file with more than one link, and checks entries with more than one link
-//! against them.
-//!
-//! The built-in patterns are passed in ([`builtin`] on a target), so tests
-//! can use patterns that point into their own fixtures.
+//! Sensitive paths: `docs/architecture.md`, Collect mode details.
 
 use std::collections::HashSet;
 use std::os::fd::AsRawFd;

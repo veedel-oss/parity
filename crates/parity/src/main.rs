@@ -1,6 +1,5 @@
-//! The `parity` binary. Decides the role before any other argument parsing:
-//! `collect` (and its unprivileged helper `hold`) hand over to collect mode
-//! directly, so no CLI code ever runs as root. Everything else is the CLI.
+//! Hands `collect` and `hold` to collect mode before any argument parsing, so
+//! no CLI code runs as root.
 
 use std::ffi::OsString;
 use std::process::exit;

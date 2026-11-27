@@ -1,18 +1,5 @@
-//! Attaching collect mode to the protocol channel of another SSH session.
-//!
-//! The CLI opens two sessions over one SSH connection. The first runs
-//! `parity hold <nonce>` without privileges: it prints its PID and keeps the
-//! session's stdin, stdout and stderr open without touching them. The second
-//! runs `sudo parity collect --attach <pid> <nonce>` (or the same with su) on
-//! a terminal, so sudo or su can ask for the password on the user's terminal
-//! directly. Collect mode then opens the holder's stdin, stdout and stderr
-//! through `/proc/<pid>/fd` and speaks the protocol there. The password never
-//! passes through Parity, and the protocol never passes through a terminal.
-//!
-//! Collect mode only attaches to a holder that runs as the user who escalated
-//! and was started with the same nonce. It opens the descriptors with that
-//! user's real and effective UID and GID, so the kernel's own access check applies and
-//! no `CAP_SYS_PTRACE` is needed.
+//! Attaches collect mode to the session of `parity hold`:
+//! `docs/architecture.md`, Connection model.
 
 use std::ffi::OsString;
 use std::io;
@@ -85,13 +72,9 @@ struct Ids {
     gid: u32,
 }
 
-// Opens the holder's descriptors with its UID and GID.
-//
-// Root may lack `CAP_SYS_PTRACE` (containers drop it), so the descriptors
-// are opened as the holder's user instead. Real and effective IDs are both
-// switched: before Linux 4.5, `/proc/<pid>/fd` checks the real IDs of the
-// caller, from 4.5 on the file system IDs (`PTRACE_MODE_FSCREDS`). The
-// saved IDs stay 0, which allows switching back.
+// As the holder's user, real and effective IDs: root may lack
+// `CAP_SYS_PTRACE`, and before Linux 4.5 `/proc/<pid>/fd` checks the real
+// IDs.
 fn open_as(ids: &Ids, pid: u32) -> Result<[OwnedFd; 3], String> {
     // SAFETY: plain system calls; we are root, so switching back succeeds.
     unsafe {
@@ -206,9 +189,7 @@ mod tests {
         assert_eq!(parse_ids("Uid:\t1\t1\t1\t1\n"), None);
     }
 
-    // A different nonce in every run, like the CLI's: 16 hex digits from the
-    // standard library's randomly seeded hasher. For tests only, not for
-    // security (collect mode itself never makes nonces).
+    // A different nonce in every run, not for security.
     fn test_nonce() -> String {
         use std::hash::{BuildHasher, RandomState};
         format!("{:016x}", RandomState::new().hash_one(0u8))

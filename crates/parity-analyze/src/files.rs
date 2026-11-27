@@ -1,9 +1,5 @@
-//! Comparison of file trees.
-//!
-//! Collect mode walks each root depth first with the names of a directory in
-//! byte order, so entries arrive ordered by path component by component.
-//! Both targets get the same roots in the same order, so the two streams can
-//! be merged like sorted lists without holding either in memory.
+//! Comparison of file trees, merged like sorted lists: `docs/architecture.md`,
+//! Comparison.
 
 use std::cmp::Ordering;
 use std::sync::mpsc::{Receiver, sync_channel};

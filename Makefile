@@ -1,30 +1,18 @@
-# Runs the checks and builds of CI (.github/workflows/ci.yml) locally, with
-# the same commands. `make check` runs all of them, with warnings denied as
-# in CI; `make help` lists the targets. When a check changes in ci.yml,
-# change it here too.
-#
-# Needs rustup and a C compiler (CONTRIBUTING.md), shellcheck, ruff and
-# hadolint for lint, file for static, docker for build-deb & e2e.
+# The checks and builds of CI (.github/workflows/ci.yml) with the same
+# commands; change both together. `make help` lists the targets.
 
 SHELL := bash
 .SHELLFLAGS := -euo pipefail -c
 .DEFAULT_GOAL := help
 
-# Rust target of the static release binary.
 TARGET := x86_64-unknown-linux-musl
 BIN := target/$(TARGET)/release/parity
-
-# OS for the e2e tests: debian-10, debian-11, debian-12 or debian-13.
 OS := debian-12
-
-# File times in the Debian package, as packaging/deb/build.sh sets them: the
-# time of the commit, unless set in the environment.
 SOURCE_DATE_EPOCH ?= $(shell git log -1 --format=%ct)
 
-# $(call each,PATTERN) COMMAND runs COMMAND on the files matching PATTERN,
-# also on files not committed yet, but not on ignored ones. As in CI, only
-# *.py files go to ruff: without paths, ruff format also formats the code
-# blocks in Markdown files.
+# $(call each,PATTERN) COMMAND: COMMAND on the files matching PATTERN, also
+# uncommitted ones. Only *.py files go to ruff, as in CI: without paths,
+# ruff format also formats code blocks in Markdown.
 each = git ls-files -z --cached --others --exclude-standard '$(1)' | xargs -0 -r
 
 DOCKERFILES := :(glob)**/Dockerfile
@@ -97,10 +85,8 @@ static: ## Build the static release binary and check it as CI does
 	fi
 	$(BIN) --version
 
-# The binary is built on the host. Only packaging/deb/build.sh runs in the
-# container, which brings dpkg-deb: as the calling user, without network,
-# and it can write only to target/. The image has no git, so the time of the
-# commit is passed in.
+# Only build.sh runs in the container. It has no git, so the commit time is
+# passed in.
 build-deb: static ## Build the Debian package in target/, with dpkg-deb from docker
 	docker build -q -t parity-deb packaging/deb >/dev/null
 	docker run --rm --network none --user "$$(id -u):$$(id -g)" \
@@ -111,7 +97,7 @@ build-deb: static ## Build the Debian package in target/, with dpkg-deb from doc
 e2e: ## Run the e2e tests on VMs with OS (make e2e OS=debian-10)
 	tests/e2e/run.sh $(OS)
 
-# Prerequisites inherit the variable, so the steps fail on warnings as in CI.
+# Prerequisites inherit the variable.
 check: export CARGO_BUILD_WARNINGS := deny
 check: lint build test static ## Run everything ci.yml runs
 

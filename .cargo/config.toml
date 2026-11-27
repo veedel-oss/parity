@@ -1,21 +1,8 @@
-# The musl release binary links with rust-lld from the toolchain pinned in
-# rust-toolchain.toml, not with the system's linker. No C code is compiled,
-# and Rust's target brings musl and its start files. Everything built for
-# the build machine itself (development builds and tests, and the build
-# scripts and proc macros of the dependencies) is linked with its cc, so
-# building still needs a C compiler.
-#
-# A RUSTFLAGS from the environment replaces the rustflags below without an
-# error. CI therefore denies warnings with CARGO_BUILD_WARNINGS=deny instead
-# of RUSTFLAGS=-D warnings.
+# See docs/architecture.md, Builds (static release build). A RUSTFLAGS from
+# the environment replaces these rustflags without an error.
 [target.x86_64-unknown-linux-musl]
 linker = "rust-lld"
 rustflags = [
-  # Static linking is the default for musl today, but Rust plans to change
-  # it to dynamic linking. The whole point of the musl binary is to be fully
-  # static. See https://github.com/rust-lang/compiler-team/issues/422
   "-C", "target-feature=+crt-static",
-  # Always musl and the start files of the pinned toolchain, never a musl
-  # installed on the build machine.
   "-C", "link-self-contained=yes",
 ]

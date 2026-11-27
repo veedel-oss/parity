@@ -1,13 +1,5 @@
-//! Protocol shared by collect mode and the CLI side.
-//!
-//! A session is a sequence of frames in each direction over a byte stream
-//! (stdin and stdout of collect mode). Every frame is a 4-byte big-endian
-//! length followed by that many bytes of payload. The payload is one message
-//! in a compact binary encoding (see [`codec`]).
-//!
-//! The first frame in each direction is a hello carrying the protocol version.
-//! Its encoding never changes, so two different versions can always detect the
-//! mismatch and report it.
+//! Protocol shared by collect mode and the CLI side: `docs/architecture.md`,
+//! Protocol.
 
 pub mod codec;
 mod frame;

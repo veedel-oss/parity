@@ -49,10 +49,7 @@ impl Connection {
         }
     }
 
-    // The installed packages as dpkg sees them, `None` if the target has no
-    // dpkg database: the status database and the pending entries of dpkg's
-    // journal, in the order dpkg applies them (read after the status
-    // database, as dpkg-query does).
+    // `None` if the target has no dpkg database.
     pub fn dpkg_packages(&mut self) -> Result<Option<Vec<Package>>> {
         self.send(&Request::DpkgStatus)?;
         let status = match self.chunks(u64::MAX)? {

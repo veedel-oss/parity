@@ -17,10 +17,8 @@ pub const MAX_READ: u64 = 64 * 1024 * 1024;
 pub const MAX_DPKG_STATUS: u64 = 256 * 1024 * 1024;
 pub const DPKG_STATUS: &[u8] = b"/var/lib/dpkg/status";
 
-// What collect mode reads that no request names: the dpkg status database,
-// the built-in sensitive patterns and whether the SSH session has ended. On a
-// target these are fixed ([`Config::target`]); tests pass their own fixtures
-// instead, so they never depend on the system that runs them.
+// What collect mode reads that no request names. Fixed on a target
+// ([`Config::target`]); tests pass their own.
 pub struct Config {
     pub dpkg_status: Vec<u8>,
     pub sensitive: Vec<Vec<u8>>,

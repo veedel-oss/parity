@@ -1,4 +1,4 @@
-# End-to-end (e2e) tests on VMs (tests/e2e/run.sh), one job per OS.
+# tests/e2e/run.sh, one job per OS.
 name: e2e tests
 
 on:
@@ -11,7 +11,6 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # Warnings fail the build.
   CARGO_BUILD_WARNINGS: deny
 
 jobs:

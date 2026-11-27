@@ -1,11 +1,5 @@
 //! Collect mode over byte streams. The root check is bypassed by calling the
 //! session directly; everything else is the real code path.
-//!
-//! The tests never depend on the system that runs them: files they read are
-//! fixtures they create, and the paths collect mode reads on its own (the
-//! dpkg database, the built-in sensitive list) are replaced by fixtures
-//! through [`session::Config`]. What only a real target can show (access
-//! times on its file systems, `/proc`) is tested in `tests/e2e`.
 
 use std::io::{self, Cursor, Write};
 use std::os::unix::fs::symlink;

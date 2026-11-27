@@ -19,10 +19,8 @@ pub const DEFAULT_BATCH: u32 = 500;
 
 pub type Sink<'a> = dyn FnMut(Response) -> io::Result<()> + 'a;
 
-// Runs a walk request. Errors returned are errors writing to `out`, or
-// `closed` reporting that nobody reads `out` any more (checked after every
-// entry and while hashing large files); problems with the request or the file
-// system are reported over `out`.
+// Returns only write errors and `closed`; problems with the request or the
+// file system are reported over `out`.
 pub fn walk(
     req: &WalkRequest,
     sensitive: &Sensitive,

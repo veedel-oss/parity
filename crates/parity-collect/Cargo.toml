@@ -8,15 +8,11 @@ repository.workspace = true
 publish.workspace = true
 
 
-# Every dependency here runs as root on the target. Each needs a reason.
+# Every dependency runs as root on the target and needs a reason (AGENTS.md).
 [dependencies]
-# Shared protocol types.
 parity-proto = { path = "../parity-proto" }
-# System calls not in std: openat, fstatat, readlinkat, readdir, poll,
-# seteuid, fork, with the exact flags collect mode needs (O_NOATIME,
-# O_NOFOLLOW).
+# System calls and flags std does not offer (O_NOATIME, O_PATH, O_NOFOLLOW).
 libc = "0.2"
-# XXH3-128 of file contents. A well-known, maintained implementation instead
-# of one of our own, without dependencies. Not a cryptographic hash, which
-# Parity does not need (docs/architecture.md, Comparison).
+# XXH3-128 of file contents, without dependencies (docs/architecture.md,
+# Comparison).
 xxhash-rust = { version = "0.8", default-features = false, features = ["xxh3"] }

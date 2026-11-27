@@ -1,35 +1,10 @@
 #!/usr/bin/env bash
 #
-# End-to-end (e2e) tests on virtual machines.
+# Usage: tests/e2e/run.sh [--image-url] OS
 #
-# Usage: tests/e2e/run.sh OS
-#        tests/e2e/run.sh --image-url OS
-#
-#   OS   debian-10, debian-11, debian-12 or debian-13
-#
-# With --image-url, only prints the URL of the cloud image of OS. CI uses it
-# for the key of its image cache.
-#
-# Tests what only a real system can show: an own kernel, real ssh, sudo and
-# su. Boots two VMs, vm1 and vm2, from the latest cloud image of OS, installs
-# the static binary in /usr/local/bin on both and tests:
-#
-#   - the workspace tests, run as root on each VM
-#   - ping, packages and compare with sudo, with su and as root
-#   - escalation and connection errors, the checks of the installed binary
-#   - two fresh installs compare as identical, changes made to one show up
-#   - dpkg's journal
-#   - access times on ext4
-#   - no process left behind after errors and Ctrl-C
-#
-# Prints "ok   NAME" or "FAIL NAME" (followed by the output) for each test and
-# exits with 1 if any test failed.
-#
-# Needs docker with /dev/kvm, ssh, ssh-keygen, curl and python3. qemu runs in
-# a container built from the Dockerfile next to this script. The image is
-# cached in ${XDG_CACHE_HOME:-~/.cache}/parity-vm and downloaded again when
-# the one on the server is newer. Also run in CI, one job per OS
-# (.github/workflows/e2e.yml).
+# The e2e tests on two VMs (docs/architecture.md, Builds; CONTRIBUTING.md,
+# Tests). --image-url only prints the URL of the cloud image, for the cache
+# key in CI.
 
 set -euo pipefail
 
@@ -40,33 +15,16 @@ root=$(cd "${here}/../.." && pwd)
 # Settings
 # ---------------------------------------------------------------------------
 
-# Supported operating systems.
 oses=(debian-10 debian-11 debian-12 debian-13)
-
-# Rust target of the static binary.
 target=x86_64-unknown-linux-musl
-
-# Downloaded cloud images, kept between runs.
 cache=${XDG_CACHE_HOME:-${HOME}/.cache}/parity-vm
-
-# The two VMs. The names are also their ssh host names.
+# Also their ssh host names.
 vms=(vm1 vm2)
-
-# Users on the VMs, created by cloud-init (see write_seed). All of them log in
-# with the test key, root only once install_parity has run.
-#
-#   tester   password testerpw   in group sudo, the default ssh user
-#   nosudo   password nosudopw   not allowed to use sudo
-#   root     password rootpw     for su
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-# image_url OS
-#
-# Prints the URL of the latest genericcloud image of OS from cloud.debian.org.
-# Fails for an OS that is not supported.
 image_url() {
     local distro release codename
     case $1 in
@@ -86,9 +44,8 @@ image_url() {
 
 # download_image URL FILE
 #
-# Downloads URL to FILE. If FILE exists, downloads only when the server has a
-# newer one (curl -z compares with the modification time of FILE, -R sets it
-# to the server's). An unfinished download never replaces FILE.
+# Only if the server's file is newer: -z compares with the time of FILE, -R
+# sets it. An unfinished download never replaces FILE.
 download_image() {
     local url=$1 file=$2
     rm -f "${file}.part"
@@ -105,12 +62,7 @@ download_image() {
     rm -f "${file}.part"
 }
 
-# test_executables
-#
-# Builds the workspace tests for the static target without running them and
-# prints the path of each test executable, one per line.
 test_executables() {
-    # From the workspace root, so rust-toolchain.toml applies.
     (cd "${root}" && cargo test --workspace --locked \
         --target "${target}" --no-run --message-format=json 2>/dev/null) |
         python3 -c '
@@ -121,9 +73,6 @@ for line in sys.stdin:
         print(m["executable"])'
 }
 
-# cleanup
-#
-# Runs on exit: removes the containers, and with them the VMs, and $work.
 # Files the containers wrote to $work are owned by root, so a container
 # removes them.
 cleanup() {
@@ -135,10 +84,7 @@ cleanup() {
     rm -rf "${work}"
 }
 
-# write_seed VM
-#
-# Writes the cloud-init configuration of VM to $work/seed-VM: the users listed
-# under Settings, each with the test key.
+# tester can use sudo, nosudo cannot, root's password is for su.
 write_seed() {
     local vm=$1 dir=${work}/seed-$1 key
     key=$(cat "${work}/key.pub")
@@ -169,14 +115,8 @@ EOS
 
 # start_vm VM IMAGE
 #
-# Boots VM from IMAGE (a file in $cache) in the container $tag-VM and adds
-# "Host VM" to $work/ssh_config. Does not wait until the VM is up.
-#
-# The VM writes to its own overlay disk in $work, IMAGE stays unchanged.
-# cloud-init reads the seed from an ISO with the volume label cidata (its
-# NoCloud data source). The serial console goes to $work/VM.console. ssh
-# reaches the VM's port 22 through port 2222 of the container, which docker
-# publishes on a free port of 127.0.0.1.
+# Does not wait until the VM is up. cloud-init's NoCloud data source reads the
+# seed from an ISO labelled cidata.
 start_vm() {
     local vm=$1 image=$2 container=${tag}-$1 port
     write_seed "${vm}"
@@ -206,20 +146,9 @@ Host ${vm}
 EOS
 }
 
-# vssh [USER@]VM COMMAND...
-#
-# Runs COMMAND on VM over ssh, as tester unless USER is given.
 vssh() { ssh -F "${work}/ssh_config" "$@"; }
-
-# vroot VM COMMAND
-#
-# Runs the shell command COMMAND as root on VM.
 vroot() { ssh -F "${work}/ssh_config" "root@$1" "$2"; }
 
-# wait_for_vm VM
-#
-# Waits until cloud-init on VM has finished, trying 120 times 5 seconds apart.
-# If VM cannot be reached then, shows the end of its console and exits.
 wait_for_vm() {
     local vm=$1
     echo "waiting for ${vm}"
@@ -236,11 +165,7 @@ wait_for_vm() {
     fi
 }
 
-# install_parity VM
-#
-# Copies the binary and the test executables to VM, installs the binary as
-# /usr/local/bin/parity, owned by root (the CLI refuses a binary other users
-# can change), and lets root log in with the test key.
+# Owned by root: the CLI refuses a binary that other users can change.
 install_parity() {
     local vm=$1
     vssh "${vm}" 'mkdir -p /tmp/parity-tests'
@@ -251,33 +176,15 @@ install_parity() {
         install -o root -g root -m 0600 ~tester/.ssh/authorized_keys /root/.ssh/authorized_keys"'
 }
 
-# ok NAME
-# fail MESSAGE
-#
-# Report a test that passed or failed. fail counts the failures.
 ok() { echo "ok   $*"; }
 fail() { echo "FAIL $*"; failures=$((failures + 1)); }
-
-# indent
-#
-# Indents its input, to set the output of a failed test apart.
 indent() { sed 's/^/    /'; }
 
 # check NAME EXIT PATTERN [DRIVE-OPTION]... -- SUBCOMMAND [ARG]...
 #
-# Runs "parity SUBCOMMAND ARG..." on this machine against the VMs. Passes if
-# its exit code matches the regular expression EXIT and its output (stdout and
-# stderr) has a line that matches the extended regular expression PATTERN.
-#
-# The command runs on a pseudo terminal under drive.py, which types passwords
-# at the prompts as a person would. DRIVE-OPTIONs go to drive.py:
-#
-#   --password PW         typed at the next password prompt; the last one is
-#                         repeated, without any an empty line is typed
-#   --interrupt-when CMD  types Ctrl-C as soon as the shell command CMD
-#                         succeeds
-#
-# Gives up after 10 minutes.
+# Passes if the exit code matches the regular expression EXIT and a line of
+# the output matches the extended regular expression PATTERN. The options of
+# drive.py are described there.
 check() {
     local name=$1 want=$2 pattern=$3
     shift 3
@@ -300,10 +207,6 @@ check() {
     fi
 }
 
-# check_no_processes_left
-#
-# Fails if a parity process (collect mode or the holder of the session) is
-# still running on a VM.
 check_no_processes_left() {
     local vm
     for vm in "${vms[@]}"; do
@@ -315,9 +218,6 @@ check_no_processes_left() {
     done
 }
 
-# kill_tree PID
-#
-# Kills PID and all processes below it.
 kill_tree() {
     local c
     for c in $(pgrep -P "$1"); do
@@ -330,9 +230,6 @@ kill_tree() {
 # Preparation
 # ---------------------------------------------------------------------------
 
-# usage
-#
-# Prints how to call this script and exits with 2.
 usage() {
     echo "usage: $0 [--image-url] OS (one of: ${oses[*]})" >&2
     exit 2
@@ -344,23 +241,19 @@ if [[ $# == 2 && $1 == --image-url ]]; then
 fi
 [[ $# == 1 ]] || usage
 os=$1
-# An unknown OS ends the script here with the usage (set -e).
+# Exits with the usage for an unknown OS (set -e).
 url=$(image_url "${os}")
 
 mkdir -p "${cache}"
 image=${os}.qcow2
 download_image "${url}" "${cache}/${image}"
 
-# From the workspace root, so rust-toolchain.toml applies.
 (cd "${root}" && cargo build --release --locked --target "${target}")
 bin=${root}/target/${target}/release/parity
 test_list=$(test_executables)
 mapfile -t tests <<<"${test_list}"
 
-# Files of this run: the test key, ssh_config, the VMs' disks, seeds and
-# consoles, test logs.
 work=$(mktemp -d)
-# Prefix of this run's container names.
 tag=parity-vm-$$
 containers=()
 trap cleanup EXIT
@@ -384,8 +277,6 @@ failures=0
 # Workspace tests as root
 # ---------------------------------------------------------------------------
 
-# Each test executable runs on its own, one test at a time. The first one
-# that fails stops the run on that VM.
 # shellcheck disable=SC2016 # $t expands on the VM
 run_tests='
     cd /tmp || exit 1
@@ -417,14 +308,11 @@ check "packages" 0 "^ *ii +bash +amd64" \
 check "compare with itself" 0 "Result: identical" \
     --password testerpw -- compare vm1 vm1
 
-# The whole file system of a running system, including /proc, /sys, /dev and
-# /run on real kernel file systems. These are excluded by default, so check
-# that they are not walked: exit 0 or 1, never 2.
+# /proc, /sys, /dev and /run are excluded by default, so never exit 2.
 check "filesystem" '[01]' "Result" \
     --password testerpw -- compare --check filesystem vm1 vm1
 
-# Files on pseudo file systems are never read: reading /proc/kmsg as root
-# would block until the kernel logs something.
+# Reading /proc/kmsg would block until the kernel logs something.
 check "pseudo fs never read" 0 "Result: identical" \
     --password testerpw -- compare --check etc --etc-dirs /proc/kmsg vm1 vm1
 
@@ -447,10 +335,8 @@ check "ssh failure" 2 "ssh to .* failed" \
 check "option-like target" 2 "must not start with '-'" \
     -- ping -- -oProxyCommand=x
 
-# A parity with another protocol on the target is refused before anyone is
-# asked for a password. The stand-in prints the hold line of protocol 99 and
-# version 9.9.9 with its PID and the path "/" in hex (see "parity hold" in
-# docs/architecture.md).
+# Refused before the password prompt. The stand-in prints a hold line of
+# protocol 99 (docs/architecture.md, parity hold).
 vroot vm1 'cat >/usr/local/bin/parity-old && chmod 755 /usr/local/bin/parity-old' <<'EOS'
 #!/bin/sh
 echo "PARITY-HOLD 99 9.9.9 $$ 2f"
@@ -459,8 +345,6 @@ check "version mismatch before password" 2 "remote parity 9.9.9 \(protocol 99\)"
     -- ping --parity-path /usr/local/bin/parity-old vm1
 vroot vm1 'rm /usr/local/bin/parity-old'
 
-# A binary that users other than root can change is refused: first one in a
-# directory everyone can write to, then one owned by another user.
 vroot vm1 'mkdir -m 777 /opt/open && cp /usr/local/bin/parity /opt/open/'
 check "binary writable by others" 2 "can be changed by other users" \
     -- ping --parity-path /opt/open/parity vm1
@@ -475,10 +359,8 @@ check_no_processes_left
 # Two fresh installs
 # ---------------------------------------------------------------------------
 
-# Two fresh installs of the same image are identical apart from what any two
-# installations differ in (see docs/compare-with-base-install.md), the DHCP
-# lease (dhclient up to Debian 11) and sudo's lecture records, which the
-# checks above leave behind.
+# What any two installs differ in (docs/compare-with-base-install.md), the
+# DHCP lease up to Debian 11 and the sudo lecture records of the checks above.
 fresh_excludes=(
     --exclude /etc/machine-id
     --exclude /etc/ssh
@@ -493,9 +375,7 @@ check "sensitive skipped" 0 "/etc/shadow: sensitive path" \
 check "identical filesystem" 0 '"result": "identical"' \
     --password testerpw -- compare --check filesystem --format json "${fresh_excludes[@]}" vm1 vm2
 
-# A pending entry in dpkg's journal counts, as for dpkg-query: bash on hold.
-# The entry is bash's record from the status database (awk in paragraph mode
-# prints it) with the status changed to hold.
+# A pending journal entry counts, as for dpkg-query: bash's record, on hold.
 vroot vm2 '
     mkdir -p /var/lib/dpkg/updates &&
     awk -v RS= -v ORS="\n\n" "/^Package: bash\n/" /var/lib/dpkg/status |
@@ -507,9 +387,6 @@ check "journal compare" 1 "^ *bash +amd64 +[^ ]+ +[^ ]+ \(hold\)" \
     --password testerpw -- compare --check packages vm1 vm2
 vroot vm2 'rm /var/lib/dpkg/updates/0000'
 
-# Changes made to one of two fresh installs show up. On vm2: a line added to
-# a configuration file, the setuid bit set on a binary, a new directory tree
-# and another owner for a file.
 vroot vm2 '
     echo extra >>/etc/adduser.conf
     chmod 4755 /usr/bin/ls
@@ -531,9 +408,8 @@ check "filesystem owner change" 1 "uid: 0 -> 1000" \
 # Access times
 # ---------------------------------------------------------------------------
 
-# Reading never changes access times on ext4 with relatime. relatime updates
-# an access time that is more than a day old, so the access times are set
-# back to 2020 first: then any read would show.
+# relatime updates access times older than a day, so set them back first:
+# then any read would show.
 atime_files=(/etc /etc/adduser.conf /etc/debian_version /usr/share/doc /var/lib/dpkg/status)
 declare -A atimes_before
 for vm in "${vms[@]}"; do
@@ -558,32 +434,22 @@ check_no_processes_left
 # Ctrl-C
 # ---------------------------------------------------------------------------
 
-# Ctrl-C in the middle of hashing a large file ends everything on the targets.
-# The file is sparse: hashing 16 GB of zeros takes seconds even with the
-# CPU's SHA instructions, but nothing is written to the VM's disk. Ctrl-C
-# comes once collect mode on vm1 has the file open. The test depends on
-# timing: if it does not finish within interrupt_timeout seconds (a slow or
-# stuck VM), it is reported as timed out and does not count as a failure. A
-# result it does reach (wrong exit code, processes left) does.
+# Ctrl-C while collect mode hashes a sparse file. It depends on timing, so not
+# finishing within interrupt_timeout is reported, but is no failure. The
+# subshell hands its failures back in a file; without it, a command failed.
 interrupt_timeout=120
-
-# The test runs in a background subshell, so that it can be stopped after
-# interrupt_timeout. The subshell counts its own failures and hands them back
-# in a file. Without that file, a command on a VM failed and stopped it.
 (
     # shellcheck disable=SC2030 # counted here, added up below
     failures=0
     for vm in "${vms[@]}"; do
         vroot "${vm}" 'truncate -s 16G /opt/big'
     done
-    # Succeeds once a process on vm1 has /opt/big open.
     hashing="ssh -F ${work}/ssh_config root@vm1 'find /proc/[0-9]*/fd -lname /opt/big 2>/dev/null | grep -q .'"
-    # One password for each VM. Exit 130 is 128 + SIGINT. Files up to 32 GB
-    # are hashed, so /opt/big is.
+    # 130: 128 + SIGINT.
     check "interrupt" 130 "" \
         --password testerpw --password testerpw --interrupt-when "${hashing}" \
         -- compare --check filesystem --max-hash-size 32G vm1 vm2
-    # Gives the processes on the targets a moment to exit.
+    # The processes on the targets need a moment to exit.
     sleep 1
     check_no_processes_left
     for vm in "${vms[@]}"; do
@@ -601,7 +467,6 @@ if kill -0 "${interrupt_pid}" 2>/dev/null; then
     kill_tree "${interrupt_pid}"
     wait "${interrupt_pid}" 2>/dev/null || true
     echo "TIMEOUT interrupt: not finished after ${interrupt_timeout} s, not counted as a failure"
-    # Shown as a warning on the summary of a GitHub Actions run.
     if [[ -n ${GITHUB_ACTIONS:-} ]]; then
         echo "::warning::interrupt test timed out on ${os}"
     fi

@@ -1,5 +1,4 @@
-//! Compact binary encoding: integers big-endian with fixed width, byte strings
-//! and lists prefixed with a u32 length, options and enums with a u8 tag.
+//! The encoding of `docs/architecture.md`, Protocol.
 
 use crate::Error;
 
