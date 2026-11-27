@@ -1,33 +1,52 @@
 # Parity: Architecture and decisions
 
+How Parity works and why, for anyone who wants to understand or change it. The exact behaviour of collect mode, the protocol and how Parity is built and released are in the documents listed under [Other documents](#other-documents).
+
 ## Purpose
 
-Parity compares two Linux machines (installed packages, configuration files, the file system) and reports where they differ. Typical uses: finding configuration drift in clusters, and comparing a legacy or manually set up system with a fresh install of the same release (for example Debian 12) to support infrastructure as code for existing machines. Parity runs on every Linux system that can be reached over SSH. Package collection supports Debian first.
+Parity compares two Linux machines, their installed packages, configuration files and file system, and reports where they differ. Typical uses are finding configuration drift in a cluster, and comparing a legacy or manually set up system with a fresh install of the same release, for example Debian 12, to bring existing machines under infrastructure as code.
+
+It runs on every Linux system that can be reached over SSH. Package collection supports Debian first.
 
 ## Core design principle
 
-Parity is a single binary with two roles. On the workstation it is the CLI: it needs no special privileges, connects to the targets over SSH, compares and reports. On each target the CLI starts the same binary over SSH in collect mode, for one run only. Collect mode runs as root, is strictly read-only, only collects raw data (package states, paths, metadata, hashes, file contents where requested) and sends it back. All analysis, meaning the comparison and the evaluation of results, lives in the CLI. This keeps the code that runs as root small and lets the analysis grow without touching the collector.
+Parity is a single binary with two roles:
 
-Root privileges exist on a target only while one run lasts, and they are granted by the target's own sudo or su, not by Parity.
+```
+workstation                           target a
+parity compare a b  ─── ssh ───────▶  parity collect, as root, read-only
+no privileges,      ◀── raw data ────
+compares, reports                     target b
+                    ─── ssh ───────▶  parity collect, as root, read-only
+                    ◀── raw data ────
+```
+
+On the workstation it is the CLI: it needs no special privileges, connects to the targets over SSH, compares and reports. On each target the CLI starts the same binary in collect mode, for one run. Collect mode runs as root, is strictly read-only, and only collects raw data: package states, paths, metadata, hashes, and file contents where requested. All analysis lives in the CLI. This keeps the code that runs as root small, and lets the analysis grow without touching the collector.
+
+Root privileges exist on a target only while one run lasts, and the target's own sudo or su grants them, not Parity.
 
 ## Components
 
-There is exactly one binary, `parity`. Its roles are subcommands:
+The roles are subcommands of the one binary:
 
-- `parity compare <target> <target>`: the CLI, run by the user on the workstation.
-- `parity collect`: collect mode, started by the CLI over SSH on a target. Not meant to be run by hand.
-- `parity hold <nonce>`: unprivileged helper on the target for escalated sessions (see Connection model). Not meant to be run by hand.
+| Command | Run by | Runs on |
+| --- | --- | --- |
+| `parity compare`, `packages`, `ping`, `completion` | the user | the workstation, as the CLI |
+| `parity collect` | the CLI, over SSH | a target, as root |
+| `parity hold <nonce>` | the CLI, over SSH, with sudo or su (see Connection model) | a target, as the SSH user |
 
-The CLI also has `parity packages <target>` (list installed packages), `parity ping <target>` (check that collect mode starts) and `parity completion <shell>` (print the shell completion script). The commands and options are listed under Command line.
+`collect` and `hold` are not meant to be run by hand. The commands and options are under Command line.
 
-Internally the binary is built from separate crates (Rust libraries, not separate programs) with clear boundaries:
+The binary is built from separate crates, libraries rather than programs:
 
-- `parity`: the binary crate. Decides the role and hands over. If the first argument is `collect` or `hold`, it calls into `parity-collect` before any other argument parsing, so no CLI code runs as root.
-- `parity-collect`: library for collect mode. Runs on the target as root, reads requests from stdin, answers on stdout, writes logs to stderr and exits. Read-only, no network, no SSH, no analysis.
-- `parity-analyze`: library for the CLI side. Starts SSH, handles privilege escalation, speaks the protocol, compares and produces reports.
-- `parity-proto`: library for the protocol shared by both sides: request and response types, version, framing, errors.
+| Crate | What it does | Runs |
+| --- | --- | --- |
+| `parity` | the binary: hands `collect` and `hold` to `parity-collect` before any other argument parsing, so no CLI code runs as root | on both sides |
+| `parity-collect` | collect mode: reads requests from stdin, answers on stdout, logs to stderr and exits; read-only, no network, no SSH, no analysis | on a target, as root |
+| `parity-analyze` | the CLI: starts SSH, handles escalation, speaks the protocol, compares and reports | on the workstation |
+| `parity-proto` | the protocol of both sides: messages, version, framing, errors | on both sides |
 
-Boundary rules: `parity-collect` and `parity-analyze` never depend on each other; both depend only on `parity-proto` for what they share. `parity-collect` keeps its dependency list short, because it runs as root. Every dependency there needs a reason.
+`parity-collect` and `parity-analyze` never depend on each other; both depend only on `parity-proto` for what they share. `parity-collect` keeps its dependency list short, because it runs as root: every dependency there needs a reason.
 
 ## Connection model
 
@@ -92,12 +111,6 @@ Each failure gets its own message:
 | escalation refused or wrong password | the escalation session ends with an error; sudo's or su's own message is already on the terminal |
 | version mismatch | the hold line or the first message; both versions are named |
 | output that is not the protocol | for example from shell startup files |
-
-## Order of features
-
-1. Installed packages.
-2. `/etc` and other configuration directories (for example `/usr/local/etc`), including a comparison of file contents.
-3. The whole file system.
 
 ## Decisions
 
