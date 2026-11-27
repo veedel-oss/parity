@@ -3,7 +3,7 @@
 use std::io::{self, Read, Write};
 
 use parity_proto::{
-    ErrorKind, Hello, MAX_FRAME, MAX_REQUEST_FRAME, ReadFileRequest, Request, Response, read_frame,
+    ErrorKind, Hello, MAX_REQUEST_FRAME, ReadFileRequest, Request, Response, read_frame,
     write_frame,
 };
 
@@ -163,8 +163,9 @@ fn send_file(
     if sensitive.is_some_and(|s| s.is_link_of_sensitive(&st)) {
         return send(error(ErrorKind::Sensitive, SENSITIVE));
     }
-    let chunk = parity_proto::CHUNK_SIZE.min(MAX_FRAME - 64);
-    match fs::read_chunks(&mut file, max, chunk, |b| send(Response::Chunk(b.to_vec())))? {
+    match fs::read_chunks(&mut file, max, parity_proto::CHUNK_SIZE, |b| {
+        send(Response::Chunk(b.to_vec()))
+    })? {
         Ok(()) => send(Response::ChunkEnd),
         Err(e) => send(open_error(e)),
     }
@@ -185,5 +186,15 @@ fn open_error(e: OpenError) -> Response {
             error(ErrorKind::NotFound, "no such file")
         }
         OpenError::Io(e) => error(ErrorKind::Io, e.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // A chunk and its message header fit in one frame.
+    #[test]
+    fn chunk_fits_in_a_frame() {
+        let (chunk, frame) = (parity_proto::CHUNK_SIZE, parity_proto::MAX_FRAME);
+        assert!(chunk + 64 <= frame);
     }
 }

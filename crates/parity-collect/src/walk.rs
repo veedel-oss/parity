@@ -257,3 +257,20 @@ fn hash_file(dir: &OwnedFd, name: &CStr, max: u64, closed: fn() -> bool) -> Hash
         Ok(Err(OpenError::Io(e))) | Err(e) => HashState::Error(e.to_string()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn limits() {
+        let req = |roots, excludes| WalkRequest {
+            roots: vec![b"/x".to_vec(); roots],
+            excludes: vec![b"/y".to_vec(); excludes],
+            ..Default::default()
+        };
+        assert!(check(&req(MAX_ROOTS, MAX_EXCLUDES)).is_ok());
+        assert!(check(&req(MAX_ROOTS + 1, 0)).is_err());
+        assert!(check(&req(1, MAX_EXCLUDES + 1)).is_err());
+    }
+}

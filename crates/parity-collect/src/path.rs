@@ -46,6 +46,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn longest_path() {
+        let mut p = vec![b'a'; MAX_PATH];
+        p[0] = b'/';
+        assert!(validate(&p).is_ok());
+        p.push(b'a');
+        assert!(validate(&p).is_err());
+    }
+
+    #[test]
     fn valid_paths() {
         for p in [
             &b"/"[..],
