@@ -49,9 +49,9 @@ pub fn glob(pat: &[u8], name: &[u8]) -> bool {
             p += 1;
             n += 1;
         } else if let Some((sp, sn)) = star {
-            p = sp + 1;
+            // Back to the star, which then takes one more byte.
+            p = sp;
             n = sn + 1;
-            star = Some((sp, sn + 1));
         } else {
             return false;
         }
