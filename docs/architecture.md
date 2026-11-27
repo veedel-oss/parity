@@ -196,18 +196,27 @@ The report for people is grouped by directory. `--format json` is for scripts; i
 
 ## Command line
 
-Fixed for the first release (decided 2026-11-24). Renaming or removing a command or option breaks the scripts that use it.
+The commands and options are fixed for the first release: renaming or removing one breaks the scripts that use it. They are the ones `parity --help` and `parity <command> --help` show, and the [README](../README.md#usage) lists them with examples. `collect` and `hold` are internal and not in the help.
 
-- Commands: `parity compare [OPTIONS] <a> <b>`, `parity packages [OPTIONS] <target>`, `parity ping [OPTIONS] <target>`, `parity completion <SHELL>`. `collect` and `hold` are internal and do not appear in the help.
-- On `compare`, `packages` and `ping`: `--become sudo|su|none` (default `sudo`), `--parity-path PATH` (default `parity`), `--ssh-config FILE` and `--ssh-option OPTION` (repeatable), passed on to ssh as `-F` and `-o`. `compare` and `packages` also take `--format text|json`.
-- `compare` only: `--check` (comma separated `packages`, `etc`, `filesystem`; default `packages,etc`), `--etc-dirs PATHS`, `--exclude PATTERN` (repeatable), `--no-default-excludes`, `--sensitive PATTERN` (repeatable), `--reveal-sensitive-metadata`, `--max-hash-size SIZE`, `--max-diff-size SIZE`, `--no-diff`, `--with-mtime`.
-- No short options. They can be added later without breaking anything, but once released they can never be removed.
-- `--etc-dirs` belongs to `--check etc` and is named after it. It takes one comma separated list and may be given only once, so a path containing a comma cannot be given. Without `etc` in `--check` it is an error, not silently ignored.
-- The opt-in that reports metadata of sensitive paths says in its name that it discloses something (`--reveal-sensitive-metadata`), because a size can give away the length of a secret. It never includes the hash.
-- `--parity-path` follows rsync's `--rsync-path`. If the binary is ever renamed, the option is renamed with it.
-- `--with-mtime`, not `--compare-mtime`, so the option does not repeat the command.
-- `completion` works like `kubectl completion`: the shell is an argument, `bash`, `fish` or `zsh`, and the script goes to stdout, for `source <(parity completion bash)` or `parity completion fish | source`. Its help says how to load it. More shells can be added later without breaking anything.
-- The completion scripts are rendered at run time from the clap definition with `clap_complete`, so they always match the help texts. `collect` and `hold` are not part of it. clap_complete's fish script completes no positional arguments, so fish offers no shells after `parity completion`. There are no man pages: `parity <command> --help` is the reference.
+### Names
+
+| Choice | Why |
+| --- | --- |
+| no short options | they can be added later without breaking anything, but once released never removed |
+| `--parity-path` | follows rsync's `--rsync-path`; if the binary is ever renamed, the option is renamed with it |
+| `--with-mtime`, not `--compare-mtime` | the option does not repeat the command |
+| `--reveal-sensitive-metadata` | says in its name that it discloses something, since a size can give away the length of a secret; it never includes the hash |
+| `--etc-dirs` | belongs to `--check etc` and is named after it |
+
+`--etc-dirs` takes one comma separated list and may be given only once, so a path containing a comma cannot be given. Without `etc` in `--check` it is an error, not silently ignored.
+
+### Completions
+
+`parity completion <shell>` works like `kubectl completion`: the shell, `bash`, `fish` or `zsh`, is an argument, and the script goes to stdout, for `source <(parity completion bash)` or `parity completion fish | source`. Its help says how to load it. More shells can be added later without breaking anything.
+
+The scripts are rendered at run time from the clap definition with `clap_complete`, so they always match the help texts. `collect` and `hold` are not part of them. clap_complete's fish script completes no positional arguments, so fish offers no shells after `parity completion`.
+
+There are no man pages: `parity <command> --help` is the reference.
 
 ## Other documents
 
