@@ -41,7 +41,7 @@ One binary, `parity`, with the subcommands `compare` (CLI) and `collect` (collec
 - Python scripts pass `ruff check` with its default rules and `ruff format --check`, in the ruff version CI installs (`.github/workflows/ci.yml`); CI checks every `*.py` file. Disable a rule only where the code is intended, on that line, with the reason (`# noqa: S602 # the test passes a shell command`).
 - Dockerfiles pass `hadolint` with strict settings (`.hadolint.yaml`): no findings down to style, base images only from Docker Hub, no labels. Use the version the hadolint action in CI pins (`.github/workflows/ci.yml`); CI checks every file named `Dockerfile`. Disable a rule only where the code is intended, on the line before the instruction, with the reason (`# hadolint ignore=DL3008 # the archive keeps only the current versions`). Base images are pinned by digest; Dependabot proposes new digests for every Dockerfile (`.github/dependabot.yml`).
 - Command and option names are fixed for the first release (`docs/architecture.md`, Command line). Ask before renaming, removing or adding one, and keep the README, the help texts and the docs in step.
-- Tick off steps in `docs/plan.md` as they are done. When a milestone is complete, delete it from the plan and move any lasting decisions into `docs/architecture.md`.
+- Tick off steps in `docs/plan.md` as they are done. When a milestone is complete, delete it from the plan and move any lasting decisions into `docs/decisions.md`.
 
 ## Status
 

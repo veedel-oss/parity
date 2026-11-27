@@ -21,7 +21,7 @@ Do not open a public issue for a security problem. The [security policy](SECURIT
 
 ## Before you start
 
-Read [docs/architecture.md](docs/architecture.md). It explains how the CLI and collect mode work together and lists the decisions made so far, with their reasons. [AGENTS.md](AGENTS.md) has the same rules in short form.
+Read [docs/architecture.md](docs/architecture.md). It explains how the CLI and collect mode work together; [docs/decisions.md](docs/decisions.md) lists the decisions made so far, with their reasons. [AGENTS.md](AGENTS.md) has the same rules in short form.
 
 Some principles are fixed, and changes that break them will not be merged:
 

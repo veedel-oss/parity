@@ -1,8 +1,8 @@
 # Plan
 
-Working plan for the Rust implementation. Work on one or two steps per session, add tests, then tick the step off. Keep this file up to date after every step. Architecture and decisions live in `docs/architecture.md`.
+Working plan for the Rust implementation. Work on one or two steps per session, add tests, then tick the step off. Keep this file up to date after every step. The architecture is in `docs/architecture.md`, the decisions in `docs/decisions.md`.
 
-Milestones 1 (end-to-end skeleton), 2 (comparison of packages), 3 (comparison of configuration directories), 4 (comparison of the whole file system) and 5 (release preparation, up to the first release with the static binary and the Debian package) are complete and removed; their decisions are in `docs/architecture.md`.
+Milestones 1 (end-to-end skeleton), 2 (comparison of packages), 3 (comparison of configuration directories), 4 (comparison of the whole file system) and 5 (release preparation, up to the first release with the static binary and the Debian package) are complete and removed; their decisions are in `docs/decisions.md`.
 
 ## Later
 
