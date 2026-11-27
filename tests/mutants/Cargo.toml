@@ -1,0 +1,17 @@
+# Never built. Pins cargo-mutants for make mutants and the weekly workflow,
+# where Dependabot updates it: docs/maintaining.md, Mutation testing.
+[package]
+name = "parity-tools"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+# Always an exact version: make mutants refuses anything else.
+cargo-mutants = "=27.1.0"
+
+# A workspace of its own, not a member of the one at the root.
+[workspace]

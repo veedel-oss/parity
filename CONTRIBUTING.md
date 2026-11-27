@@ -64,6 +64,7 @@ cargo build --release --locked --target x86_64-unknown-linux-musl
 - Unit tests are pure. They get what they need (paths, UIDs, metadata, file system types) passed in or mocked, and never depend on the system that runs them.
 - Integration tests in `crates/*/tests` only touch fixtures they create themselves.
 - Whatever only a real system can show (kernel behaviour, access times, `/proc`, real ssh, sudo and su) belongs in the e2e tests in `tests/e2e`.
+- Every mutant of `make mutants` is caught by a test, or excluded in `.cargo/mutants.toml` with the reason ([docs/maintaining.md](docs/maintaining.md#mutation-testing)). CI runs it once a week.
 
 The e2e tests boot two virtual machines from the latest Debian cloud image and test against them over real ssh:
 

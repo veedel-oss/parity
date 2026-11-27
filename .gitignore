@@ -1,1 +1,3 @@
 /target
+# tests/mutants/Cargo.toml only pins cargo-mutants.
+/tests/mutants/Cargo.lock

@@ -17,8 +17,12 @@ each = git ls-files -z --cached --others --exclude-standard '$(1)' | xargs -0 -r
 
 DOCKERFILES := :(glob)**/Dockerfile
 
+MUTANTS_VERSION = $(shell sed -n 's/^cargo-mutants = "=\([0-9.]*\)"$$/\1/p' tests/mutants/Cargo.toml)
+MUTANTS_ROOT = target/tools/cargo-mutants-$(MUTANTS_VERSION)
+JOBS ?= 4
+
 .PHONY: help fmt lint lint-rust lint-shell lint-python lint-docker lint-deps \
-	build test static build-deb e2e check clean
+	build test static build-deb e2e mutants check clean
 
 help: ## List the targets
 	@awk 'BEGIN { FS = ":.*## " } /^[a-z0-9-]+:.*## / { printf "  %-12s %s\n", $$1, $$2 }' \
@@ -96,6 +100,14 @@ build-deb: static ## Build the Debian package in target/, with dpkg-deb from doc
 
 e2e: ## Run the e2e tests on VMs with OS (make e2e OS=debian-10)
 	tests/e2e/run.sh $(OS)
+
+# The cargo-mutants pinned in tests/mutants/Cargo.toml, installed into
+# target/tools.
+mutants: ## Run mutation testing over the workspace (make mutants JOBS=8)
+	@[[ -n "$(MUTANTS_VERSION)" ]] || { echo "error: tests/mutants/Cargo.toml must pin cargo-mutants to an exact version" >&2; exit 1; }
+	[[ -x $(MUTANTS_ROOT)/bin/cargo-mutants ]] || \
+		cargo install --locked --quiet --root $(MUTANTS_ROOT) cargo-mutants@$(MUTANTS_VERSION)
+	$(MUTANTS_ROOT)/bin/cargo-mutants mutants --workspace --jobs $(JOBS)
 
 # Prerequisites inherit the variable.
 check: export CARGO_BUILD_WARNINGS := deny

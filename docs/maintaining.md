@@ -65,6 +65,14 @@ The maintainer publishes the draft. The provenance can be checked with `gh attes
 
 `packaging/deb/copyright`, in Debian's machine-readable format, names everything linked into the static binary with its copyright holders and license: Parity (AGPL-3.0-or-later with the full text, which `/usr/share/common-licenses` does not have), every crate from crates.io, the Rust standard library, LLVM's libunwind and musl. CI checks that it lists exactly the crates of `cargo tree -p parity --target x86_64-unknown-linux-musl -e normal,no-proc-macro`.
 
+## Mutation testing
+
+`make mutants` runs [cargo-mutants](https://mutants.rs) over the workspace. It changes the code in small ways, one change at a time, and runs all tests for each. A change that no test notices, a missed mutant, is a gap in the tests. The settings are in `.cargo/mutants.toml`, the report goes to `target/mutants.out`.
+
+The version is pinned in `tests/mutants/Cargo.toml`, a manifest that is never built, so that Dependabot proposes updates. `make mutants` installs that version into `target/tools` with `cargo install --locked`, which builds it with the `Cargo.lock` published with that version. `.github/workflows/mutants.yml` runs it every Monday and keeps the report as an artifact. A full run takes too long for every pull request.
+
+Code that only the e2e tests can exercise is excluded in `.cargo/mutants.toml`, each exclusion with its reason.
+
 ## Settings on GitHub
 
 The maintainer sets these on GitHub, not in the repository, so that only the maintainer can publish a release:

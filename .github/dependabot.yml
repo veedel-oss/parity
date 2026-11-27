@@ -27,6 +27,18 @@ updates:
       semver-minor-days: 14
       semver-major-days: 30
 
+  # The cargo-mutants of make mutants, in a manifest that is never built.
+  - package-ecosystem: cargo
+    directory: /tests/mutants
+    schedule:
+      interval: daily
+    allow:
+      - dependency-name: cargo-mutants
+    cooldown:
+      semver-patch-days: 7
+      semver-minor-days: 14
+      semver-major-days: 30
+
   - package-ecosystem: docker
     directories:
       - "**/*"

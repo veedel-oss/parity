@@ -1,0 +1,6 @@
+# cargo-mutants: docs/maintaining.md, Mutation testing.
+
+# The tests of other crates cover much of a crate, for example the session
+# tests of parity-collect cover parity-proto.
+test_workspace = true
+output = "target"
