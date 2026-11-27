@@ -76,7 +76,7 @@ fn check_safe_path(exe: &std::path::Path) -> Result<(), String> {
     check_chain(exe, &chain, unsafe { libc::getuid() })
 }
 
-// The rules: docs/architecture.md, Connection model.
+// The rules: docs/collect-mode.md, The binary run as root.
 fn check_chain(exe: &std::path::Path, chain: &[PathInfo], uid: u32) -> Result<(), String> {
     for p in chain {
         let writable = p.mode & 0o002 != 0;

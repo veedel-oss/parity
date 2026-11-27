@@ -31,34 +31,67 @@ Boundary rules: `parity-collect` and `parity-analyze` never depend on each other
 
 ## Connection model
 
-The CLI uses the system's `ssh` binary, so the user's keys, agent, password, ssh config and jump hosts apply. Authentication, encryption and host verification come from SSH. Collect mode handles one session: it reads requests until the end of input or an explicit end request, answers each, and exits. It also exits when writing to stdout fails, so it never outlives the SSH session. No SSH port forwarding is needed. This fails only if the SSH user is restricted to fixed commands (for example by ForceCommand).
+The CLI runs the system's `ssh`, so the user's keys, agent, ssh config and jump hosts apply, and SSH provides authentication, encryption and host verification. Collect mode serves one session over the stdin and stdout of ssh and exits when it ends. No port forwarding is needed. It does not work for an SSH user restricted to fixed commands (ForceCommand).
 
-Privilege escalation (option `--become`):
+### Escalation
 
-- `sudo` is the default.
-- `su` with a password prompt, for systems without sudo (su is part of every Debian installation).
-- `none` for when the SSH user is already root.
+`--become` chooses how collect mode becomes root:
 
-The password never passes through Parity. Parity has no password option, never reads it, never stores it and never relays it. The prompt from sudo or su goes to the user's terminal and the user types the password there. When two targets need a password, the CLI handles the prompts one after another, then collects from both in parallel.
+| `--become` | For |
+| --- | --- |
+| `sudo` (default) | an SSH user who may use sudo |
+| `su` | systems without sudo; su asks for root's password |
+| `none` | an SSH user who is root |
 
-How the prompt and the protocol share one SSH connection (decided after prototyping against Debian 9 and 13 with sudo and su, see "Decisions"):
+The password never passes through Parity. There is no password option, and the prompt of sudo or su appears on the user's terminal, where the user types the password. With two targets the prompts come one after the other, then both are collected in parallel.
 
-- With `--become none` there is one session, `ssh -T -- <target> parity collect`, and the protocol runs over its stdin and stdout.
-- With sudo or su the CLI opens two sessions over one SSH connection, using OpenSSH connection multiplexing with a private control socket on the workstation (`ssh -M -S <socket> -o ControlPersist=no`, the second session with `-S <socket>`). No port forwarding is involved.
-  1. Protocol session, without a terminal: `parity hold <nonce>` runs as the SSH user. It prints one line (`PARITY-HOLD <protocol> <version> <pid> <path of the binary in hex>`) and then keeps the session's stdin, stdout and stderr open without reading or writing them (it polls them with no requested events, which reports only a hangup). The CLI checks the protocol version here, before anyone is asked for a password.
-  2. Escalation session, with a terminal (`ssh -tt`), whose stdin, stdout and stderr are the CLI's own terminal: `sudo -- <path> collect --attach <pid> <nonce>`, or `su -c '<path> collect --attach <pid> <nonce>' root`. sudo or su prompts on that terminal and the user types into ssh directly; the CLI process never sees a byte of it.
-  3. Collect mode, now root, checks the holder: all its UIDs equal the user who escalated (`SUDO_UID`, or for su the owner of the terminal, which sshd sets to the login user), its GIDs are uniform, and its command line is exactly `<path> hold <nonce>`. It then opens `/proc/<pid>/fd/0`, `1` and `2` with the holder's real and effective UID and GID, keeping 0 as saved IDs (so the kernel's same-user rule applies and no `CAP_SYS_PTRACE` is needed; containers and hardened systems drop it; before Linux 4.5 the kernel checks the real IDs for this, from 4.5 on the file system IDs, so switching only the effective IDs fails on old kernels), switches back to root, checks that the descriptors are pipes and that the holder is still the same, ignores SIGHUP, forks and detaches (`setsid`) with those pipes as stdin, stdout and stderr. The parent exits, so sudo or su return and the escalation session ends.
-  4. The CLI speaks the protocol over the protocol session.
-- The holder refuses to start if a third user could replace the binary that is about to run as root: the binary and every directory above it must belong to root or the SSH user and must not be writable by others (sticky directories excepted). Group write is accepted, because Debian ships `/usr/local/bin` as `root:staff` 2775 and sudo's `secure_path` trusts it the same way.
-- When the session ends or the CLI is interrupted, ssh closes the pipes: collect mode sees end of input or a write error and exits (during a walk it also polls stdout for a hangup after every entry and every 16 MiB while hashing, and ends the walk), the holder sees the hangup and exits. Nothing stays behind, the e2e tests check this after Ctrl-C in the middle of hashing a 16 GB file.
+### Two sessions over one connection
 
-Remote path: the CLI runs `parity` from the SSH user's `PATH` by default (the holder is started that way) and has an option for a different path (`--parity-path`). The escalated command uses the absolute path the holder reports, so sudo's `secure_path` and su's environment do not matter and the same binary runs in both sessions. A missing binary is therefore always detected in the unprivileged session (exit code 126 or 127), and the CLI points to `--parity-path`.
+With `--become none`, one session runs `parity collect`. With sudo or su, the prompt needs a terminal, but the protocol must not pass through one. So the CLI opens two sessions over one SSH connection, with OpenSSH connection multiplexing and a private control socket on the workstation:
 
-Version check: the first message of every session carries the protocol version, in an encoding that never changes. With escalation the holder line carries it too, so a mismatch is reported before the password prompt. If the versions of the CLI and the remote binary do not match, the CLI stops with a clear error naming both versions.
+```
+workstation                           target
+                 protocol session
+CLI  ── ssh -T ─────────────────────▶ parity hold <nonce>            SSH user
+     ◀─────────── hold line ────────  keeps its pipes open
+                 escalation session
+     ── ssh -tt ────────────────────▶ sudo parity collect --attach   root
+terminal ◀──── password prompt ─────  takes over the holder's pipes,
+                                      detaches, sudo returns
+CLI  ◀═══════════ protocol ════════▶  collect mode
+```
 
-Error messages: ssh failures (exit code 255), binary not found (126, 127), collect mode not running as root with `--become none`, escalation refused or wrong password (the escalation session ends with a non-zero status; sudo's or su's own message is already on the terminal), version mismatch, and output that is not the protocol (for example from shell startup files) each get their own message.
+1. The protocol session runs `parity hold <nonce>` as the SSH user. It prints one line with its PID, the protocol version and the path of its binary, and keeps its pipes open.
+2. The escalation session runs `sudo` or `su` with `parity collect --attach <pid> <nonce>` on a terminal, so the prompt reaches the user.
+3. Collect mode, now root, checks that the holder is the user's own `parity hold` with the same nonce, takes over its pipes and detaches. sudo or su return, and the escalation session ends.
+4. The CLI speaks the protocol over the protocol session.
 
-Target address format: whatever `ssh` accepts as a destination, passed on unchanged: `host` or `user@host` (where `host` may be an alias from `~/.ssh/config`), or `ssh://[user@]host[:port]` for a custom port (IPv6 as `ssh://[fe80::1]:2222`). Users, ports and jump hosts otherwise come from the ssh config. Parity has no address syntax of its own, which avoids the IPv6 ambiguity of `host:port`. A target starting with `-` is rejected, and the CLI always places `--` before the target, so a target can never be read as an ssh option (for example `-oProxyCommand=...`).
+The checks of steps 1 and 3 are in [collect-mode.md](collect-mode.md#attaching).
+
+### Version and path
+
+The hold line carries the protocol version, so a mismatch is reported before anyone is asked for a password. The first message of every session carries it too, in an encoding that never changes (see Protocol).
+
+The CLI runs `parity` from the SSH user's `PATH`, or the path given with `--parity-path`. The escalated command uses the absolute path the holder reports, so sudo's `secure_path` and su's environment do not matter, and the same binary runs in both sessions. A missing binary therefore always shows up in the unprivileged session.
+
+### End of a session
+
+When the session ends or the CLI is interrupted, ssh closes the pipes. Collect mode sees the end of its input or a failed write and exits, also in the middle of a walk, and the holder sees the hangup and exits. Nothing stays behind on the target.
+
+### Targets and errors
+
+A target is whatever `ssh` accepts as a destination, passed on unchanged: `host`, `user@host`, an alias from `~/.ssh/config`, or `ssh://[user@]host[:port]` for a port (IPv6 as `ssh://[fe80::1]:2222`). Parity has no address syntax of its own, which avoids the IPv6 ambiguity of `host:port`. A target starting with `-` is rejected, and the CLI always puts `--` before the target, so it is never read as an ssh option.
+
+Each failure gets its own message:
+
+| Failure | Detected by |
+| --- | --- |
+| ssh failed | exit code 255 |
+| `parity` not found on the target | exit code 126 or 127; the message points to `--parity-path` |
+| not root with `--become none` | collect mode refuses |
+| escalation refused or wrong password | the escalation session ends with an error; sudo's or su's own message is already on the terminal |
+| version mismatch | the hold line or the first message; both versions are named |
+| output that is not the protocol | for example from shell startup files |
 
 ## Order of features
 

@@ -1,5 +1,5 @@
 //! Attaches collect mode to the session of `parity hold`:
-//! `docs/architecture.md`, Connection model.
+//! `docs/collect-mode.md`, Attaching.
 
 use std::ffi::OsString;
 use std::io;
