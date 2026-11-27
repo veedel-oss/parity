@@ -703,4 +703,98 @@ mod tests {
         assert_eq!(content_diff(["a", "b"], b"\0\x01", b"x"), Content::Binary);
         assert_eq!(content_diff(["a", "b"], b"\xff", b"x"), Content::Binary);
     }
+
+    #[test]
+    fn within() {
+        assert!(is_within(b"/etc", b"/etc"));
+        assert!(is_within(b"/etc/a", b"/etc"));
+        assert!(!is_within(b"/etcx", b"/etc"));
+        assert!(is_within(b"/etc", b"/"));
+    }
+
+    fn fields(m: &Merged) -> Vec<&'static str> {
+        m.report
+            .differences
+            .iter()
+            .flat_map(|d| d.changes.iter().map(|c| c.field))
+            .collect()
+    }
+
+    #[test]
+    fn fields_compared_only_where_they_mean_something() {
+        // Sizes and link targets of directories, devices of different types.
+        let mut x = d("/etc/a");
+        x.link_target = Some(b"x".to_vec());
+        let mut y = x.clone();
+        y.size = Some(2);
+        y.link_target = Some(b"y".to_vec());
+        let mut c = e("/etc/c", FileKind::CharDevice);
+        c.rdev = Some(1);
+        let mut b = e("/etc/c", FileKind::BlockDevice);
+        b.rdev = Some(2);
+        let mut t = f("/etc/t");
+        t.mtime = Some((2, 0));
+        let m = run(vec![x, c, t], vec![y, b, f("/etc/t")], &opts());
+        assert_eq!(fields(&m), ["type"]);
+    }
+
+    #[test]
+    fn content_only_between_regular_files() {
+        let mut x = f("/etc/a");
+        x.hash = HashState::Error("I/O error".into());
+        let m = run(vec![x], vec![d("/etc/a")], &opts());
+        assert!(m.report.errors.is_empty());
+        assert_eq!(fields(&m), ["type"]);
+    }
+
+    #[test]
+    fn content_change_shows_hash_prefixes() {
+        let mut x = f("/etc/a");
+        x.hash = HashState::Xxh3([0xab; 16]);
+        let m = run(vec![x], vec![f("/etc/a")], &opts());
+        let c = &m.report.differences[0].changes[0];
+        assert_eq!(
+            (c.a.as_str(), c.b.as_str()),
+            ("abababababab", "010101010101")
+        );
+    }
+
+    #[test]
+    fn skipped_unless_the_size_differs() {
+        let mut x = f("/etc/p");
+        x.hash = HashState::PseudoFs;
+        let m = run(vec![x.clone()], vec![x.clone()], &opts());
+        assert_eq!(m.report.skipped.len(), 1);
+        let mut y = x.clone();
+        y.mode = 0o600;
+        let m = run(vec![x.clone()], vec![y], &opts());
+        assert_eq!(m.report.skipped.len(), 1);
+        let mut y = x.clone();
+        y.size = Some(2);
+        let m = run(vec![x], vec![y], &opts());
+        assert!(m.report.skipped.is_empty());
+    }
+
+    #[test]
+    fn content_fetched_only_when_wanted() {
+        let mut x = f("/etc/a");
+        x.hash = HashState::Xxh3([2; 16]);
+        let mut o = opts();
+        o.content = false;
+        let m = run(vec![x.clone()], vec![f("/etc/a")], &o);
+        assert!(m.content_candidates.is_empty());
+        assert_eq!(m.report.differences[0].content, None);
+
+        // One side sensitive or too large is enough.
+        let mut s = x.clone();
+        s.sensitive = true;
+        let mut big = x;
+        big.size = Some(10 << 20);
+        let mut small = f("/etc/a");
+        small.size = Some(10 << 20);
+        let m = run(vec![s], vec![f("/etc/a")], &opts());
+        assert_eq!(m.report.differences[0].content, Some(Content::Sensitive));
+        let m = run(vec![big], vec![f("/etc/a")], &opts());
+        assert_eq!(m.report.differences[0].content, Some(Content::TooLarge));
+    }
 }
