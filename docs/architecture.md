@@ -120,7 +120,7 @@ Each decision with its reason.
 
 ### Reading the target
 
-- **No trace on the target.** Collect mode writes no files, no state, cache or temporary files, and leaves access times unchanged, which with plain reads `relatime` would still update about once a day (see Collect mode details). Its logs go to stderr and reach the CLI. sudo and su log the escalation as usual: that is the target's own audit trail.
+- **No trace on the target.** Collect mode writes no files, no state, cache or temporary files, and leaves access times unchanged, which with plain reads `relatime` would still update about once a day (see [collect-mode.md](collect-mode.md#opening-files)). Its logs go to stderr and reach the CLI. sudo and su log the escalation as usual: that is the target's own audit trail.
 - **Sensitive paths reveal nothing about their content by default.** For paths such as `/etc/shadow`, `/etc/ssh/ssh_host_*_key` or `/home/*/.ssh`, collect mode reports only existence, type, mode, owner and group. Size, modification time, link target, device number, hash and content are withheld: a size can reveal the length of a secret, and a hash can give away a short one, as the content hash is not cryptographic (see Comparison).
 - **The user can add sensitive paths and opt in to more metadata,** but the hash and content of a sensitive file are never sent. The built-in list keeps secrets out of reports and terminals; it is no boundary against the root-capable user.
 - **File contents only on request,** for the diff of configuration files: the CLI fetches only files whose hashes differ, within a size limit.
@@ -148,22 +148,7 @@ Each decision with its reason.
 
 ## Protocol
 
-Implemented in `parity-proto` without dependencies.
-
-- Framing: every message is a frame of a 4-byte big-endian length and the payload. Collect mode accepts request frames up to 1 MiB, the CLI accepts frames up to 16 MiB.
-- Encoding: a compact binary format written for Parity. Integers big-endian with fixed width, byte strings and lists prefixed with a u32 length, options and enums with a u8 tag. Decoders check every length against the bytes left, so a forged length cannot make them allocate. Paths are byte strings, Linux paths need not be UTF-8.
-- Session: both sides first send a hello (magic `PRTY`, u32 protocol version, program version). Then the CLI sends requests and collect mode answers each in order: `Ping`, `DpkgStatus` (raw `/var/lib/dpkg/status` in chunks, parsed by the CLI), `Walk` (metadata below roots, streamed in batches of at most 1000 entries, errors per path, an end marker), `ReadFile` (content of one regular file in chunks of 256 KiB, within a size limit, at most 64 MiB), and `End`. An undecodable request ends the session.
-
-## Collect mode details
-
-- Every path from the CLI must be absolute and normalised (no empty, `.` or `..` components, no trailing slash, no NUL, at most 4096 bytes). Limits per request: 64 roots, 4096 excludes, 256 extra sensitive patterns.
-- Paths are opened step by step from `/` with `openat` and `O_NOFOLLOW`. Directories that are only passed through are opened with `O_PATH` (Linux 2.6.39), which never changes an access time and needs no ownership for `O_NOATIME`. Directories and files that are read are opened with `O_NOATIME`. There is no fallback without it: a file that cannot be opened that way is reported as an error rather than read with a changed access time.
-- Files are opened with `O_NONBLOCK` and checked with `fstat` after opening, so a FIFO swapped in after the `stat` cannot block the walk.
-- Files on pseudo file systems (proc, sysfs, debugfs, tracefs, securityfs, cgroup, bpf, pstore, configfs, efivarfs, devpts and similar, detected with `fstatfs`) are never read: reading them can block (`/proc/kmsg`) or have side effects. The walk still lists them, with the hash state "pseudo file system".
-- The walk is depth first with the names of each directory in byte order, one open descriptor per level (the soft limit of open files is raised to the hard limit for this process). Link targets longer than 4096 bytes are refused, so a batch always fits in a frame.
-- Patterns: sensitive paths and excludes are patterns (`crates/parity-collect/src/pattern.rs`). A pattern is a path whose components may contain `*`, matching any run of bytes within one component; it covers the paths that match it and everything below them.
-- Sensitive paths: the built-in list is in `crates/parity-collect/src/sensitive.rs`. A hard link elsewhere to a sensitive file is sensitive too: collect mode notes device and inode of all sensitive regular files with more than one link (scanning at most 20,000 paths) and checks entries with more than one link against them.
-- Collect mode needs these system calls, all present in Linux 3.2: `openat`, `newfstatat`, `fstat`, `fstatfs`, `readlinkat`, `getdents64`, `poll`, `fcntl`, `getrlimit`/`setrlimit`, `setresgid`/`setresuid`, `fork`, `setsid`, `dup2`.
+The CLI and collect mode speak a compact binary protocol of their own, over the stdin and stdout of the SSH session. Each side first sends a hello with its protocol version, then the CLI sends requests and collect mode answers each in order. It is implemented in `parity-proto`, without dependencies. Framing, encoding and the requests are in [protocol.md](protocol.md), and how collect mode handles them in [collect-mode.md](collect-mode.md).
 
 ## Comparison
 
@@ -227,6 +212,7 @@ Fixed for the first release (decided 2026-11-24). Renaming or removing a command
 ## Other documents
 
 - [collect-mode.md](collect-mode.md): the exact behaviour of collect mode, for reviewers
+- [protocol.md](protocol.md): framing, encoding and the requests of the protocol
 - [security-review.md](security-review.md): the review of collect mode
 - [maintaining.md](maintaining.md): toolchain, builds, releases, the Debian package and the settings on GitHub
 - [tests/e2e/README.md](../tests/e2e/README.md): what the e2e tests cover

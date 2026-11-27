@@ -93,7 +93,7 @@ The script prints the path of the package, here `target/parity_<version>_amd64.d
 
 ## Code guidelines
 
-- Collect mode must keep working on old kernels, down to Linux 3.2. Use newer system calls only with a fallback. The system calls it uses are listed in `docs/architecture.md`.
+- Collect mode must keep working on old kernels, down to Linux 3.2. Use newer system calls only with a fallback. The system calls it uses are listed in `docs/collect-mode.md`.
 - Collect mode does no name lookups. It sends UIDs and GIDs as numbers.
 - Never implement hashing, cryptography, random number generation or other security-relevant algorithms yourself. Use well-known, maintained crates (content hashes from `xxhash-rust`, random tokens from `rand`).
 - Write the code yourself for this repository. Do not copy code from other projects.

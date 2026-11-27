@@ -1,4 +1,4 @@
-//! Sensitive paths: `docs/architecture.md`, Collect mode details.
+//! Sensitive paths: `docs/collect-mode.md`, Patterns and sensitive paths.
 
 use std::collections::HashSet;
 use std::os::fd::AsRawFd;

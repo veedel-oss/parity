@@ -1,5 +1,5 @@
 //! Thin wrappers around the system calls of collect mode:
-//! `docs/architecture.md`, Collect mode details.
+//! `docs/collect-mode.md`, System calls.
 
 use std::ffi::{CStr, CString};
 use std::io;

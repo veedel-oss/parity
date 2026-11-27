@@ -1,4 +1,4 @@
-//! The encoding of `docs/architecture.md`, Protocol.
+//! The encoding of `docs/protocol.md`.
 
 use crate::Error;
 

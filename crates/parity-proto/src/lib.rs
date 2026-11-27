@@ -1,5 +1,4 @@
-//! Protocol shared by collect mode and the CLI side: `docs/architecture.md`,
-//! Protocol.
+//! Protocol shared by collect mode and the CLI side: `docs/protocol.md`.
 
 pub mod codec;
 mod frame;
