@@ -79,4 +79,49 @@ mod tests {
             Err(Error::FrameTooLarge(256))
         ));
     }
+
+    #[test]
+    fn largest_frame() {
+        let mut buf = Vec::new();
+        write_frame(&mut buf, &vec![0; crate::MAX_FRAME]).unwrap();
+        assert!(matches!(
+            write_frame(&mut Vec::new(), &vec![0; crate::MAX_FRAME + 1]),
+            Err(Error::FrameTooLarge(_))
+        ));
+        let mut r = &buf[..];
+        assert_eq!(
+            read_frame(&mut r, crate::MAX_FRAME).unwrap().unwrap().len(),
+            crate::MAX_FRAME
+        );
+    }
+
+    // Returns the queued results of `read` in turn, then the bytes.
+    struct Script(Vec<std::io::Result<()>>, &'static [u8]);
+
+    impl Read for Script {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if !self.0.is_empty() {
+                self.0.remove(0)?;
+            }
+            self.1.read(buf)
+        }
+    }
+
+    #[test]
+    fn retries_interrupted() {
+        let mut r = Script(
+            vec![Err(ErrorKind::Interrupted.into())],
+            &[0, 0, 0, 1, b'x'],
+        );
+        assert_eq!(read_frame(&mut r, 100).unwrap().unwrap(), b"x");
+    }
+
+    #[test]
+    fn read_error() {
+        let mut r = Script(vec![Err(ErrorKind::BrokenPipe.into())], &[0, 0, 0, 1, b'x']);
+        let e = read_frame(&mut r, 100).unwrap_err();
+        assert!(matches!(&e, Error::Io(e) if e.kind() == ErrorKind::BrokenPipe));
+        assert!(std::error::Error::source(&e).is_some());
+        assert!(std::error::Error::source(&Error::Truncated).is_none());
+    }
 }

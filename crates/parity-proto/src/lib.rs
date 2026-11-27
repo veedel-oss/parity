@@ -67,3 +67,24 @@ impl From<std::io::Error> for Error {
         Error::Io(e)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The limits are part of the protocol: docs/protocol.md.
+    #[test]
+    fn limits() {
+        assert_eq!(MAX_FRAME, 16 << 20);
+        assert_eq!(MAX_REQUEST_FRAME, 1 << 20);
+        assert_eq!(CHUNK_SIZE, 256 << 10);
+    }
+
+    #[test]
+    fn display() {
+        assert_eq!(
+            Error::FrameTooLarge(5).to_string(),
+            "frame of 5 bytes exceeds the limit"
+        );
+    }
+}
