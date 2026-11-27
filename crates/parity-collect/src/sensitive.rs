@@ -133,7 +133,7 @@ fn note_tree(p: &[u8], linked: &mut HashSet<(u64, u64)>, budget: &mut usize) {
         return;
     };
     match st.st_mode & libc::S_IFMT {
-        libc::S_IFREG if st.st_nlink > 1 => {
+        libc::S_IFREG => {
             linked.insert((st.st_dev, st.st_ino));
         }
         libc::S_IFDIR => {
@@ -191,6 +191,19 @@ mod tests {
         assert!(s.matches(b"/etc/shadow"));
         assert!(new(&[b"relative".to_vec()]).is_err());
         assert!(new(&[b"/a/../b".to_vec()]).is_err());
+        assert!(new(&vec![b"/x".to_vec(); MAX_EXTRA]).is_ok());
         assert!(new(&vec![b"/x".to_vec(); MAX_EXTRA + 1]).is_err());
+    }
+
+    #[test]
+    fn hard_links_need_a_second_name() {
+        let mut s = Sensitive::from_patterns(&[], &[]).unwrap();
+        s.linked.insert((1, 2));
+        // SAFETY: stat is plain data, all zeroes is a valid value.
+        let mut st: libc::stat = unsafe { std::mem::zeroed() };
+        (st.st_dev, st.st_ino, st.st_nlink) = (1, 2, 2);
+        assert!(s.is_link_of_sensitive(&st));
+        st.st_nlink = 1;
+        assert!(!s.is_link_of_sensitive(&st));
     }
 }
