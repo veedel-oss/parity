@@ -17,7 +17,7 @@ Parity compares two Linux machines and reports differences in files, configurati
 
 ## Workspace layout
 
-One binary, `parity`, with the subcommands `compare` (CLI) and `collect` (collect mode). The other crates are libraries linked into it, not separate programs.
+One binary, `parity`, with the CLI commands `compare`, `packages`, `ping` and `completion`, and the internal `collect` (collect mode) and `hold` (its unprivileged helper on the target). The other crates are libraries linked into it, not separate programs.
 
 - `crates/parity`: the binary, dispatches to collect mode or the CLI
 - `crates/parity-collect`: collect mode, runs as root on the target
@@ -34,7 +34,8 @@ One binary, `parity`, with the subcommands `compare` (CLI) and `collect` (collec
 - Prefer calling the system `ssh` binary over embedding an SSH library, so the user's ssh config and agent apply.
 - No company-specific data, host names, IPs or configuration anywhere in the repository, including tests and git history.
 - All code is written from scratch for this repository.
-- Keep comments minimal: only what the code does not show, such as a reason that is not obvious. No long explanations or examples, and no repeating what is described elsewhere: link to it instead (a file, or a section of `docs/architecture.md`).
+- Keep comments minimal: only what the code does not show, such as a reason that is not obvious. No long explanations or examples, and no repeating what is described elsewhere: link to it instead (a file, or a section of a document in `docs/`).
+- Docs describe the current state, one topic per paragraph or bullet: no dates of decisions and no approaches that were replaced. The git log and `CHANGELOG.md` keep the history.
 - Never implement hashing, cryptography, random number generation or other security-relevant algorithms yourself: use well-known, maintained libraries (content hashes from `xxhash-rust`, random tokens from `rand`). This outweighs keeping the dependency list short.
 - Tests never depend on the system that runs them. Unit tests are pure: pass in what they need (paths, UIDs, metadata, file system types) or mock it. Integration tests in `crates/*/tests` only touch fixtures they create; collect mode takes the paths it reads on its own (dpkg database, built-in sensitive list) from `session::Config`. What only a real system can show (kernel behaviour, access times, `/proc`) belongs in the e2e tests in `tests/e2e`.
 - Shell scripts pass `shellcheck` without findings, with all optional checks (`.shellcheckrc`); CI checks every `*.sh` file. Fix what it reports; disable a check only where the code is intended, on that line, with the reason (`# shellcheck disable=SC2016 # expands on the VM`).

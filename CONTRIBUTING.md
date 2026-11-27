@@ -47,11 +47,12 @@ You need Linux, [rustup](https://rustup.rs) and a C compiler such as `gcc`. Rust
 rustup toolchain install
 ```
 
-The checks CI runs on every pull request:
+The Rust checks CI runs on every pull request:
 
 ```bash
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo build --workspace --all-targets --locked
 cargo test --workspace --locked
 cargo build --release --locked --target x86_64-unknown-linux-musl
 ```
