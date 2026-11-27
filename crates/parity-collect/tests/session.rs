@@ -432,13 +432,20 @@ fn walk_hashes_match_xxhsum() {
 fn walk_root_through_symlink_is_refused() {
     let t = fixture("rootlink");
     let (entries, errors, _) = walk(WalkRequest {
-        roots: vec![t.bytes("link/a.conf"), t.bytes("missing")],
+        roots: vec![
+            t.bytes("link/a.conf"),
+            t.bytes("missing"),
+            t.bytes("missing/x"),
+        ],
         ..Default::default()
     });
     assert!(entries.is_empty());
     assert_eq!(
-        errors.len(),
-        1,
+        errors,
+        [(
+            t.bytes("link/a.conf"),
+            "a path component is a symlink or not a directory".to_string()
+        )],
         "missing root is silent, symlink is an error"
     );
 }
@@ -678,9 +685,103 @@ fn hard_links_to_sensitive_files_are_sensitive() {
     assert!(entries[0].sensitive);
     assert_eq!(entries[0].hash, HashState::Withheld);
     assert_eq!(entries[0].size, None);
+    // Found by a pattern with a star too.
+    assert_eq!(
+        read(t.bytes("innocent"), 100, vec![t.bytes("sec*")], false),
+        Err(ErrorKind::Sensitive)
+    );
     // Without the pattern it is an ordinary file.
     assert_eq!(
         read(t.bytes("innocent"), 100, vec![], false),
         Ok(b"hunter2".to_vec())
     );
+}
+
+#[test]
+fn walk_hashes_only_on_request() {
+    use std::os::unix::fs::PermissionsExt;
+    let t = fixture("hashopts");
+    std::fs::set_permissions(t.path("big"), std::fs::Permissions::from_mode(0o640)).unwrap();
+    let req = |hash| WalkRequest {
+        roots: vec![t.bytes("")],
+        hash,
+        max_hash_size: 5000,
+        ..Default::default()
+    };
+    let (entries, _, _) = walk(req(false));
+    let big = find(&entries, &t.bytes("big"));
+    assert_eq!(big.hash, HashState::None);
+    assert_eq!(big.mode, 0o640);
+    assert_eq!(big.rdev, None);
+    let (entries, _, _) = walk(req(true));
+    assert!(matches!(
+        find(&entries, &t.bytes("big")).hash,
+        HashState::Xxh3(_)
+    ));
+}
+
+#[test]
+fn walk_hashes_files_of_many_chunks() {
+    let t = TempDir::new("manychunks");
+    let f = std::fs::File::create(t.path("f")).unwrap();
+    f.set_len(17 << 20).unwrap();
+    let (entries, _, _) = walk(WalkRequest {
+        roots: vec![t.bytes("")],
+        hash: true,
+        max_hash_size: u64::MAX,
+        ..Default::default()
+    });
+    assert!(matches!(
+        find(&entries, &t.bytes("f")).hash,
+        HashState::Xxh3(_)
+    ));
+}
+
+#[test]
+fn read_file_limits_and_errors() {
+    let t = fixture("readlimits");
+    assert_eq!(
+        read(t.bytes("big"), 5000, vec![], false).map(|d| d.len()),
+        Ok(5000)
+    );
+    assert_eq!(
+        read(t.bytes("nodir/x"), 100, vec![], false),
+        Err(ErrorKind::NotFound)
+    );
+    let long = format!("{}/{}", t.0.display(), "n".repeat(300));
+    assert_eq!(
+        read(long.into_bytes(), 100, vec![], false),
+        Err(ErrorKind::Io)
+    );
+    assert_eq!(session::MAX_READ, 64 << 20);
+}
+
+#[test]
+fn sensitive_patterns_apply_per_request() {
+    let t = fixture("perrequest");
+    let req = |extra: Vec<Vec<u8>>| {
+        Request::ReadFile(ReadFileRequest {
+            path: t.bytes("sub/a.conf"),
+            max_size: 100,
+            sensitive: SensitivePolicy {
+                extra,
+                metadata: false,
+            },
+        })
+    };
+    let (_, _, resp) = session(&[req(vec![]), req(vec![t.bytes("sub")]), Request::End]);
+    assert!(matches!(
+        &resp[..2],
+        [Response::Chunk(_), Response::ChunkEnd]
+    ));
+    assert!(matches!(
+        &resp[2..],
+        [
+            Response::Error {
+                kind: ErrorKind::Sensitive,
+                ..
+            },
+            Response::Bye
+        ]
+    ));
 }
