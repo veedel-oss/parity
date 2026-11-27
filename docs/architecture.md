@@ -101,25 +101,50 @@ Each failure gets its own message:
 
 ## Decisions
 
-- One binary for both roles. The CLI starts collect mode over SSH for one run. Reasons: root privileges exist only for one run, nothing needs to be set up or configured on the targets apart from installing the binary, and authorisation comes from the target's existing sudo or su setup.
-- Collect and analysis code stay in separate crates (see Components), so the part that runs as root stays small and reviewable.
-- Collect mode refuses to run unless it runs as root (effective UID 0), with a clear error message. The CLI role needs no privileges.
-- Only users who can become root on a target (through sudo or su) can inspect it with Parity. Whoever can do that has read access to the whole file system anyway, Parity adds no new access.
-- Parity itself leaves no trace on the inspected system. Collect mode opens every file and directory with `O_NOATIME`, so reading does not change access times (with plain reads, `relatime` would still update them about once a day; `stat` never touches them). It writes no files: no state, no cache, no temporary files. Logs go to stderr and reach the CLI. sudo and su log the escalation as usual, that is the target's own audit trail and intended.
-- Sensitive paths (for example `/etc/shadow`, `/etc/gshadow`, `/etc/ssh/ssh_host_*_key`, `/etc/ssl/private`, `/root/.ssh`, `/home/*/.ssh`) never leak information about their content by default. Collect mode reports only existence, type, mode, owner and group for them. Size, modification time, link target, device number, hash and content are withheld, because a size can reveal the length of a secret and a hash can give away a short one. The list is built in. The user running the CLI (who is root-capable on the target anyway) can add paths with an explicit option and can opt in to the metadata of sensitive paths with an explicit option. The hash and the content of sensitive files are never transferred: the content hash is not cryptographic (see Comparison). The default protects reports and terminals from secrets, it is not a security boundary against the root-capable user.
-- Collect mode serves file contents on request, for the content comparison of configuration files. The CLI fetches contents only for files whose hashes differ, within a size limit.
-- Parity runs on every Linux system that can be reached over SSH, old and new (supported and tested: Debian 10 to Debian 13, on the target as well as on the workstation). Therefore it is written in Rust and statically linked against musl: it needs no libc or other libraries on the target, and the same binary runs everywhere. A target needs the `parity` binary, an SSH server and sudo or su. The remaining limits are the minimum kernel of the Rust target (currently 3.2), one build per CPU architecture, and package collection, which needs support per distribution.
-- Collect mode uses newer system calls only with a fallback, so it keeps working on old kernels (for example `statx` from 4.11, `openat2` from 5.6; Debian 10 ships 4.19). Not following symlinks is done with `openat` and `O_NOFOLLOW` step by step, not with `openat2`.
-- Collect mode reports owner and group as raw UID and GID and does no name lookups (no NSS, no libc user database).
-- License: AGPL-3.0-or-later.
-- Name and distribution: the binary and the project stay `parity`. The crates are not published on crates.io (`publish = false`): `parity` is taken there by an unrelated crate, the `parity-` prefix is in practice that of Parity Technologies (`parity-scale-codec`, `parity-wasm`, `parity-db`), and a target needs the static musl binary, which `cargo install` would not build. Releases are on GitHub: the static binary and a Debian package made from it (see [maintaining.md](maintaining.md#releases)). Checked 2026-11-23: Repology lists no distribution package named `parity`, only `parity-git` in the AUR (the discontinued Parity Ethereum client, whose binary was also called `parity`).
-- Architectures: x86_64 only, the one the e2e tests run on. A further architecture is built, tested and released together, once CI can run the e2e tests on it.
-- No rsync. An rsync-based comparison depends too much on the network setup (sudo on both targets, SSH port forwarding between them for itemized changes).
-- Privilege escalation shares one SSH connection through two multiplexed sessions, a holder and an escalation session, with collect mode attaching to the holder's pipes (see Connection model). Alternatives that were ruled out: a terminal for the whole session (the protocol would pass through a line discipline, and the password would have to be relayed by the CLI); `sudo -S` (the password would pass through Parity); `sudo -v` in a first session (the sudo timestamp is bound to the terminal, a second session does not share it, and su has no timestamp at all); a socket or FIFO on the target (would write to the target and open a local channel to a root process).
-- The protocol is a compact binary format written for Parity, not JSON lines, so `parity-collect` needs no serialisation library (see Protocol).
-- Collect mode depends only on `parity-proto`, `libc` and `xxhash-rust` (XXH3-128 for content hashes, see Comparison; hashes and security-relevant algorithms always come from well-known libraries, never from this repository). The CLI takes the nonces for attaching from `rand` (a ChaCha CSPRNG seeded from the system's random source).
-- The CLI uses clap without its default features `color` and `suggestions` (decided 2026-11-26): help and errors are plain text, without "did you mean" hints, which keeps the seven crates for terminal colours and string similarity out of the binary.
-- `parity compare` exit codes follow `diff` and `cmp`: 0 targets identical, 1 differences found, 2 error (the comparison could not be completed, for example a target unreachable, `parity` not found on the target, escalation failed, a protocol error). Files skipped on purpose (size limit, sensitive paths, excluded paths) are listed in the report but do not change the exit code.
+Each decision with its reason.
+
+### Roles and privileges
+
+- **One binary for both roles.** The CLI starts collect mode over SSH for one run: root privileges exist only for that run, a target needs nothing set up apart from the binary, and authorisation comes from its existing sudo or su setup.
+- **Collecting and analysing in separate crates** (see Components), so the code that runs as root stays small and reviewable.
+- **Collect mode runs only as root** (effective UID 0) and says so otherwise. The CLI needs no privileges.
+- **Only users who can become root on a target can inspect it.** They can read the whole file system anyway, so Parity adds no access.
+- **Escalation over two sessions of one SSH connection** (see Connection model). Ruled out:
+
+  | Alternative | Why not |
+  | --- | --- |
+  | a terminal for the whole session | the protocol would pass through a line discipline, and the CLI would have to relay the password |
+  | `sudo -S` | the password would pass through Parity |
+  | `sudo -v` in a first session | the sudo timestamp is bound to the terminal, a second session does not share it, and su has no timestamp at all |
+  | a socket or FIFO on the target | it would write to the target and open a local channel to a root process |
+
+### Reading the target
+
+- **No trace on the target.** Collect mode writes no files, no state, cache or temporary files, and leaves access times unchanged, which with plain reads `relatime` would still update about once a day (see Collect mode details). Its logs go to stderr and reach the CLI. sudo and su log the escalation as usual: that is the target's own audit trail.
+- **Sensitive paths reveal nothing about their content by default.** For paths such as `/etc/shadow`, `/etc/ssh/ssh_host_*_key` or `/home/*/.ssh`, collect mode reports only existence, type, mode, owner and group. Size, modification time, link target, device number, hash and content are withheld: a size can reveal the length of a secret, and a hash can give away a short one, as the content hash is not cryptographic (see Comparison).
+- **The user can add sensitive paths and opt in to more metadata,** but the hash and content of a sensitive file are never sent. The built-in list keeps secrets out of reports and terminals; it is no boundary against the root-capable user.
+- **File contents only on request,** for the diff of configuration files: the CLI fetches only files whose hashes differ, within a size limit.
+- **UIDs and GIDs as numbers.** Collect mode does no name lookups: no NSS, no libc user database.
+
+### Where it runs
+
+- **Every Linux system that can be reached over SSH,** old and new. Supported and tested are Debian 10 to 13, as target and as workstation. So Parity is written in Rust and statically linked against musl: the same binary runs everywhere and needs no libraries on the target. A target needs the binary, an SSH server and sudo or su. What stays limited: the minimum kernel of the Rust target (Linux 3.2), one build per CPU architecture, and package collection, which needs support for each distribution.
+- **Newer system calls only with a fallback,** so old kernels keep working: `statx` is from Linux 4.11, `openat2` from 5.6, and Debian 10 ships 4.19. Symlinks are not followed thanks to `openat` with `O_NOFOLLOW` step by step, not `openat2`.
+- **x86_64 only,** the architecture the e2e tests run on. Another one is built, tested and released together, once CI can run the e2e tests on it.
+
+### Protocol and dependencies
+
+- **A compact binary protocol of its own,** not JSON lines, so collect mode needs no serialisation library (see Protocol).
+- **Collect mode depends only on `parity-proto`, `libc` and `xxhash-rust`** (XXH3-128 for content hashes, see Comparison). Hashes and other security-relevant algorithms come from well-known libraries, never from this repository. The CLI takes the nonces for attaching from `rand`, a ChaCha CSPRNG seeded from the system's random source.
+- **clap without its features `color` and `suggestions`.** Help and errors are plain text without "did you mean" hints, which keeps the seven crates for terminal colours and string similarity out of the binary.
+
+### Output, name and distribution
+
+- **Exit codes as with `diff` and `cmp`:** 0 identical, 1 differences found, 2 error, when the comparison could not be completed (a target unreachable, `parity` not found on it, escalation failed, a protocol error). Files skipped on purpose (size limit, sensitive or excluded paths) are listed in the report but do not change the exit code.
+- **No rsync.** A comparison with rsync depends too much on the network setup: sudo on both targets, and SSH port forwarding between them for itemized changes.
+- **The name stays `parity`, and the crates are not published on crates.io** (`publish = false`). There `parity` is taken by an unrelated crate, the `parity-` prefix is in practice that of Parity Technologies (`parity-scale-codec`, `parity-wasm`, `parity-db`), and `cargo install` would not build the static musl binary a target needs. Releases are on GitHub, with the static binary and a Debian package made from it (see [maintaining.md](maintaining.md#releases)).
+- **The Debian package is called `parity` too.** No distribution has a package of that name: Repology lists only `parity-git` in the AUR, the discontinued Parity Ethereum client, whose binary was also called `parity`.
+- **License:** AGPL-3.0-or-later.
 
 ## Protocol
 
