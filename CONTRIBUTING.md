@@ -56,7 +56,7 @@ cargo test --workspace --locked
 cargo build --release --locked --target x86_64-unknown-linux-musl
 ```
 
-`make check` runs all checks of CI, including shellcheck, ruff and the dependency checks, and fails on warnings as CI does. `make help` lists the single steps, such as `make fmt`, `make lint`, `make test` and `make static`.
+`make check` runs all checks of CI, including shellcheck, ruff, hadolint and the dependency checks, and fails on warnings as CI does. `make help` lists the single steps, such as `make fmt`, `make lint`, `make test` and `make static`.
 
 ## Tests
 
@@ -75,6 +75,8 @@ They need docker with access to `/dev/kvm`, plus `ssh`, `ssh-keygen`, `curl` and
 Shell scripts must pass `shellcheck` without findings, with all optional checks enabled (`.shellcheckrc`, which shellcheck reads by itself); CI checks every `*.sh` file in the repository, so give shell scripts that extension. Disable a check only where the code is intended, on that line and with the reason, for example `# shellcheck disable=SC2016 # expands on the VM`.
 
 Python scripts must pass `ruff check` with its default rules and `ruff format --check`, in the ruff version that `.github/workflows/ci.yml` installs, since the default rules change between ruff releases. CI checks every `*.py` file in the repository. Disable a rule only where the code is intended, on that line and with the reason, for example `# noqa: S602 # the test passes a shell command`.
+
+Dockerfiles must pass `hadolint` with the strict settings of `.hadolint.yaml`, which hadolint reads by itself: no findings down to style, base images only from Docker Hub, and no labels. Use the version that the hadolint action in `.github/workflows/ci.yml` pins. CI checks every file named `Dockerfile` in the repository, so give Dockerfiles that name. Disable a rule only where the code is intended, in a comment on the line before the instruction and with the reason, for example `# hadolint ignore=DL3008 # the archive keeps only the current versions`. Base images are pinned by digest, so a new one comes only with a reviewed change. Dependabot proposes new digests for every Dockerfile in the repository (`.github/dependabot.yml`).
 
 ## Debian package
 
@@ -104,7 +106,7 @@ The script prints the path of the package, here `target/parity_<version>_amd64.d
 - Branch from `main` and keep the history linear: rebase onto `main` instead of merging `main` into your branch.
 - Commit messages have a short subject in the imperative ("Match excludes as patterns") and a body that explains what changed and why, wrapped at 72 characters.
 - Describe how you tested the change, especially on real systems.
-- All checks must pass: formatting, clippy, shellcheck, ruff, the tests, the static builds and the e2e tests.
+- All checks must pass: formatting, clippy, shellcheck, ruff, hadolint, the tests, the static builds and the e2e tests.
 
 ## License
 

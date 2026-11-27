@@ -1,0 +1,11 @@
+# Takes precedence over the settings the hadolint action passes in CI.
+failure-threshold: style
+
+ignored:
+  - DL3057  # Disable healthcheck check, as we do not need this here
+
+trustedRegistries:
+  - docker.io
+
+# Without a label-schema, every label is reported.
+strict-labels: true

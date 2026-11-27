@@ -3,8 +3,8 @@
 # in CI; `make help` lists the targets. When a check changes in ci.yml,
 # change it here too.
 #
-# Needs rustup and a C compiler (CONTRIBUTING.md), shellcheck and ruff for
-# lint, file for static, docker for build-deb & e2e.
+# Needs rustup and a C compiler (CONTRIBUTING.md), shellcheck, ruff and
+# hadolint for lint, file for static, docker for build-deb & e2e.
 
 SHELL := bash
 .SHELLFLAGS := -euo pipefail -c
@@ -27,8 +27,10 @@ SOURCE_DATE_EPOCH ?= $(shell git log -1 --format=%ct)
 # blocks in Markdown files.
 each = git ls-files -z --cached --others --exclude-standard '$(1)' | xargs -0 -r
 
-.PHONY: help fmt lint lint-rust lint-shell lint-python lint-deps build test \
-	static build-deb e2e check clean
+DOCKERFILES := :(glob)**/Dockerfile
+
+.PHONY: help fmt lint lint-rust lint-shell lint-python lint-docker lint-deps \
+	build test static build-deb e2e check clean
 
 help: ## List the targets
 	@awk 'BEGIN { FS = ":.*## " } /^[a-z0-9-]+:.*## / { printf "  %-12s %s\n", $$1, $$2 }' \
@@ -38,7 +40,7 @@ fmt: ## Format the Rust and Python code
 	cargo fmt --all
 	$(call each,*.py) ruff format
 
-lint: lint-rust lint-shell lint-python lint-deps ## Run all lint checks
+lint: lint-rust lint-shell lint-python lint-docker lint-deps ## Run all lint checks
 
 lint-rust: ## Check the Rust formatting, run clippy
 	cargo fmt --all --check
@@ -50,6 +52,9 @@ lint-shell: ## Run shellcheck on every *.sh file
 lint-python: ## Run ruff check and the ruff format check on every *.py file
 	$(call each,*.py) ruff check
 	$(call each,*.py) ruff format --check
+
+lint-docker: ## Run hadolint on every Dockerfile
+	$(call each,$(DOCKERFILES)) hadolint
 
 lint-deps: ## Check the crate boundaries and packaging/deb/copyright
 	@for pair in 'parity-collect parity-analyze' 'parity-analyze parity-collect'; do \

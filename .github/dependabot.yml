@@ -1,6 +1,5 @@
 version: 2
 updates:
-  # Actions are pinned to commit SHAs in the workflows.
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -28,21 +27,9 @@ updates:
       semver-minor-days: 14
       semver-major-days: 30
 
-  # The base image of the e2e test container (tests/e2e/Dockerfile), pinned
-  # by digest. The tag is a codename, so only the digest is updated.
-  # Docker supports only default-days of the cooldown.
   - package-ecosystem: docker
-    directory: /tests/e2e
-    schedule:
-      interval: daily
-    cooldown:
-      default-days: 7
-
-  # The base image of the container that builds the Debian package locally
-  # (packaging/deb/Dockerfile, make build-deb), pinned by digest like the
-  # one above.
-  - package-ecosystem: docker
-    directory: /packaging/deb
+    directories:
+      - "**/*"
     schedule:
       interval: daily
     cooldown:
