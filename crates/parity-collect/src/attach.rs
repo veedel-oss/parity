@@ -12,6 +12,8 @@ pub fn valid_nonce(n: &str) -> bool {
 }
 
 // Identity of the holder process from `/proc/<pid>/status`.
+// Not unit tested: needs root and the holder process, e2e tests.
+#[cfg_attr(test, mutants::skip)]
 fn holder_ids(pid: u32) -> Result<(u32, u32), String> {
     let status = std::fs::read_to_string(format!("/proc/{pid}/status"))
         .map_err(|e| format!("holder process {pid} not found: {e}"))?;
@@ -32,6 +34,8 @@ fn parse_ids(status: &str) -> Option<(u32, u32)> {
     Some((ids("Uid:")?, ids("Gid:")?))
 }
 
+// Not unit tested: needs root and the holder process, e2e tests.
+#[cfg_attr(test, mutants::skip)]
 fn check_cmdline(pid: u32, nonce: &str) -> Result<(), String> {
     let raw = std::fs::read(format!("/proc/{pid}/cmdline"))
         .map_err(|e| format!("holder process {pid} not found: {e}"))?;
@@ -55,6 +59,8 @@ fn cmdline_matches(raw: &[u8], nonce: &str) -> bool {
 
 // UID of the user who escalated: `SUDO_UID` from sudo, otherwise the owner
 // of the terminal (set by sshd to the login user), which covers su.
+// Not unit tested: needs root and the holder process, e2e tests.
+#[cfg_attr(test, mutants::skip)]
 fn invoking_uid() -> Result<u32, String> {
     if let Some(uid) = std::env::var("SUDO_UID").ok().and_then(|v| v.parse().ok()) {
         return Ok(uid);
@@ -75,6 +81,8 @@ struct Ids {
 // As the holder's user, real and effective IDs: root may lack
 // `CAP_SYS_PTRACE`, and before Linux 4.5 `/proc/<pid>/fd` checks the real
 // IDs.
+// Not unit tested: needs root and the holder process, e2e tests.
+#[cfg_attr(test, mutants::skip)]
 fn open_as(ids: &Ids, pid: u32) -> Result<[OwnedFd; 3], String> {
     // SAFETY: plain system calls; we are root, so switching back succeeds.
     unsafe {
@@ -114,6 +122,8 @@ fn open_as(ids: &Ids, pid: u32) -> Result<[OwnedFd; 3], String> {
 // Attaches to the holder and makes its descriptors stdin, stdout and
 // stderr of a detached child. Returns in the child; the parent exits, which
 // ends sudo or su and the terminal session.
+// Not unit tested: needs root and the holder process, e2e tests.
+#[cfg_attr(test, mutants::skip)]
 pub fn attach(args: &[OsString]) -> Result<(), String> {
     let (pid, nonce) = match args {
         [pid, nonce] => (pid.to_str(), nonce.to_str()),

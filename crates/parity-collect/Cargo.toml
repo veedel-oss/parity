@@ -16,3 +16,7 @@ libc = "0.2"
 # XXH3-128 of file contents, without dependencies (docs/architecture.md,
 # Comparison).
 xxhash-rust = { version = "0.8", default-features = false, features = ["xxh3"] }
+
+[dev-dependencies]
+# For #[cfg_attr(test, mutants::skip)]: docs/maintaining.md, Mutation testing.
+mutants = "0.0.4"

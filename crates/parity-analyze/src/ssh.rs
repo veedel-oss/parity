@@ -172,6 +172,8 @@ impl ControlPath {
 
 use std::os::unix::fs::DirBuilderExt;
 
+// Not unit tested: removes a socket in the real XDG_RUNTIME_DIR or /tmp.
+#[cfg_attr(test, mutants::skip)]
 impl Drop for ControlPath {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.path);
@@ -314,6 +316,8 @@ impl Connection {
         Ok(c)
     }
 
+    // Not unit tested: talks to a real ssh process, e2e tests.
+    #[cfg_attr(test, mutants::skip)]
     fn open_escalated(target: &str, opts: &SshOptions, b: Become) -> Result<Connection> {
         let control = ControlPath::new()?;
         let nonce = random_token(32)?;
@@ -367,6 +371,8 @@ impl Connection {
 
     // Reads lines until the holder's line. Other lines (for example from
     // shell startup files) are shown and skipped.
+    // Not unit tested: talks to a real ssh process, e2e tests.
+    #[cfg_attr(test, mutants::skip)]
     fn read_hold_line(&mut self) -> Result<HoldLine> {
         for _ in 0..200 {
             let mut line = Vec::new();
@@ -400,6 +406,8 @@ impl Connection {
         classify_exit(&self.target, &self.opts, status, &lines)
     }
 
+    // Not unit tested: talks to a real ssh process, e2e tests.
+    #[cfg_attr(test, mutants::skip)]
     fn kill(&mut self) {
         // Close our end first, so nothing that still holds the session's
         // pipes on our side (a proxy, a relay) waits for input forever.
@@ -409,6 +417,8 @@ impl Connection {
         self.stderr.finish();
     }
 
+    // Not unit tested: talks to a real ssh process, e2e tests.
+    #[cfg_attr(test, mutants::skip)]
     fn handshake(&mut self) -> Result<()> {
         let frame = match read_frame(&mut self.stdout, MAX_FRAME) {
             Ok(Some(f)) => f,
@@ -433,6 +443,8 @@ impl Connection {
         self.write(&ours)
     }
 
+    // Not unit tested: talks to a real ssh process, e2e tests.
+    #[cfg_attr(test, mutants::skip)]
     fn write(&mut self, frame: &[u8]) -> Result<()> {
         let Some(stdin) = self.stdin.as_mut() else {
             bail!("connection to {} is closed", self.target)
@@ -443,6 +455,8 @@ impl Connection {
         Ok(())
     }
 
+    // Not unit tested: talks to a real ssh process, e2e tests.
+    #[cfg_attr(test, mutants::skip)]
     pub fn send(&mut self, r: &Request) -> Result<()> {
         self.write(&r.encode())
     }
@@ -457,6 +471,8 @@ impl Connection {
     }
 
     // Ends the session cleanly and waits for ssh to exit.
+    // Not unit tested: talks to a real ssh process, e2e tests.
+    #[cfg_attr(test, mutants::skip)]
     pub fn close(mut self) -> Result<()> {
         self.send(&Request::End)?;
         match self.recv()? {
@@ -473,6 +489,8 @@ impl Connection {
     }
 }
 
+// Not unit tested: ends a real ssh process, e2e tests.
+#[cfg_attr(test, mutants::skip)]
 impl Drop for Connection {
     fn drop(&mut self) {
         if self.stdin.is_some() {

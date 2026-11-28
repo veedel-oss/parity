@@ -71,7 +71,7 @@ The maintainer publishes the draft. The provenance can be checked with `gh attes
 
 The version is pinned in `tests/mutants/Cargo.toml`, a manifest that is never built, so that Dependabot proposes updates. `make mutants` installs that version into `target/tools` with `cargo install --locked`, which builds it with the `Cargo.lock` published with that version. `.github/workflows/mutants.yml` runs it every Monday and keeps the report as an artifact. A full run takes too long for every pull request.
 
-Code that only the e2e tests can exercise is excluded in `.cargo/mutants.toml`, each exclusion with its reason.
+A function that only the e2e tests can exercise is marked `#[cfg_attr(test, mutants::skip)]`, with the reason in a comment above it. The attribute exists only in test builds, so `mutants` is a dev-dependency and not part of the binary.
 
 ## Settings on GitHub
 

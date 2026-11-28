@@ -213,6 +213,8 @@ fn completion(shell: Shell) -> Vec<u8> {
     script
 }
 
+// Not unit tested: the exit code of a real process, e2e tests.
+#[cfg_attr(test, mutants::skip)]
 pub fn main(args: Vec<OsString>) -> i32 {
     let cli = match Cli::try_parse_from(std::iter::once(OsString::from("parity")).chain(args)) {
         Ok(c) => c,
@@ -230,6 +232,8 @@ pub fn main(args: Vec<OsString>) -> i32 {
     }
 }
 
+// Not unit tested: runs the commands over real ssh, e2e tests.
+#[cfg_attr(test, mutants::skip)]
 fn run(cli: Cli) -> Result<i32> {
     match cli.cmd {
         Cmd::Ping { conn, target } => {

@@ -28,6 +28,8 @@ pub fn require_root(euid: u32) -> Result<(), String> {
 }
 
 // Called by the binary before any other argument parsing.
+// Not unit tested: the exit code of a real process, e2e tests.
+#[cfg_attr(test, mutants::skip)]
 pub fn main(args: &[OsString]) -> i32 {
     match run(args, sys::euid()) {
         Ok(()) => 0,

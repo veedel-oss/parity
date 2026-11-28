@@ -4,6 +4,8 @@
 use std::ffi::OsString;
 use std::process::exit;
 
+// Not unit tested: the dispatch of a real process, e2e tests.
+#[cfg_attr(test, mutants::skip)]
 fn main() {
     let args: Vec<OsString> = std::env::args_os().skip(1).collect();
     let code = match args.first().and_then(|a| a.to_str()) {

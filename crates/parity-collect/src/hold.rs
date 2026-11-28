@@ -8,6 +8,8 @@ use crate::attach::valid_nonce;
 
 pub const PREFIX: &str = "PARITY-HOLD";
 
+// Not unit tested: the holder process itself, e2e tests.
+#[cfg_attr(test, mutants::skip)]
 pub fn main(args: &[OsString]) -> i32 {
     let nonce = match args {
         [n] => n.to_str().filter(|n| valid_nonce(n)),
@@ -59,6 +61,8 @@ struct PathInfo {
 
 // The CLI runs this very binary as root next. Refuse if a third user could
 // replace it.
+// Not unit tested: reads the real path of the binary; check_chain has the rules and is tested.
+#[cfg_attr(test, mutants::skip)]
 fn check_safe_path(exe: &std::path::Path) -> Result<(), String> {
     use std::os::unix::fs::MetadataExt;
     let mut chain = Vec::new();
@@ -101,6 +105,8 @@ fn check_chain(exe: &std::path::Path, chain: &[PathInfo], uid: u32) -> Result<()
 // Waits until stdin has no writer left or stdout has no reader left. Polling
 // with no requested events reports only these conditions, so no data on
 // stdin is consumed.
+// Not unit tested: waits for a real ssh session to end, e2e tests.
+#[cfg_attr(test, mutants::skip)]
 fn wait_for_hangup() {
     let mut fds = [
         libc::pollfd {

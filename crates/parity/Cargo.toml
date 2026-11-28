@@ -11,3 +11,7 @@ publish.workspace = true
 [dependencies]
 parity-collect = { path = "../parity-collect" }
 parity-analyze = { path = "../parity-analyze" }
+
+[dev-dependencies]
+# For #[cfg_attr(test, mutants::skip)]: docs/maintaining.md, Mutation testing.
+mutants = "0.0.4"
