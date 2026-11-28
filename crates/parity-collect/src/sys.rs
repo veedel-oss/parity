@@ -5,26 +5,34 @@ use std::ffi::{CStr, CString};
 use std::io;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 
-pub const DIR_FLAGS: libc::c_int = libc::O_RDONLY
-    | libc::O_DIRECTORY
-    | libc::O_NOFOLLOW
-    | libc::O_NOATIME
-    | libc::O_CLOEXEC
-    | libc::O_NOCTTY;
+use libc::{O_CLOEXEC, O_DIRECTORY, O_NOATIME, O_NOCTTY, O_NOFOLLOW, O_NONBLOCK, O_PATH};
+
+pub const DIR_FLAGS: libc::c_int =
+    flags(&[O_DIRECTORY, O_NOFOLLOW, O_NOATIME, O_CLOEXEC, O_NOCTTY]);
 
 // For directories that are only passed through, never read.
-pub const PATH_FLAGS: libc::c_int =
-    libc::O_PATH | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC;
+pub const PATH_FLAGS: libc::c_int = flags(&[O_PATH, O_DIRECTORY, O_NOFOLLOW, O_CLOEXEC]);
 
 // `O_NONBLOCK` so that a file replaced by a FIFO between `stat` and `open`
 // cannot block the walk. Regular files ignore it.
-pub const FILE_FLAGS: libc::c_int = libc::O_RDONLY
-    | libc::O_NOFOLLOW
-    | libc::O_NOATIME
-    | libc::O_CLOEXEC
-    | libc::O_NOCTTY
-    | libc::O_NONBLOCK;
+pub const FILE_FLAGS: libc::c_int =
+    flags(&[O_NOFOLLOW, O_NOATIME, O_CLOEXEC, O_NOCTTY, O_NONBLOCK]);
 
+// Read only (O_RDONLY is 0) with all of `all`. Not unit tested on its own:
+// ^ is the same as | for distinct flags; open_flags checks the result.
+#[cfg_attr(test, mutants::skip)]
+const fn flags(all: &[libc::c_int]) -> libc::c_int {
+    let mut f = libc::O_RDONLY;
+    let mut i = 0;
+    while i < all.len() {
+        f |= all[i];
+        i += 1;
+    }
+    f
+}
+
+// Not unit tested: depends on the user running the tests.
+#[cfg_attr(test, mutants::skip)]
 pub fn euid() -> u32 {
     // SAFETY: geteuid has no preconditions and cannot fail.
     unsafe { libc::geteuid() }
@@ -34,10 +42,12 @@ pub fn cstring(name: &[u8]) -> io::Result<CString> {
     CString::new(name).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
 }
 
-fn retry<T: PartialEq + Copy>(fail: T, mut f: impl FnMut() -> T) -> io::Result<T> {
+// Calls `f` until it does not fail with EINTR. A negative result is a
+// failure, as for every call here.
+fn retry<T: PartialOrd + Default>(mut f: impl FnMut() -> T) -> io::Result<T> {
     loop {
         let r = f();
-        if r != fail {
+        if r >= T::default() {
             return Ok(r);
         }
         let e = io::Error::last_os_error();
@@ -49,14 +59,14 @@ fn retry<T: PartialEq + Copy>(fail: T, mut f: impl FnMut() -> T) -> io::Result<T
 
 pub fn open(path: &CStr, flags: libc::c_int) -> io::Result<OwnedFd> {
     // SAFETY: path is a valid C string; the returned fd is owned by us.
-    let fd = retry(-1, || unsafe { libc::open(path.as_ptr(), flags) })?;
+    let fd = retry(|| unsafe { libc::open(path.as_ptr(), flags) })?;
     // SAFETY: fd is a freshly opened descriptor.
     Ok(unsafe { OwnedFd::from_raw_fd(fd) })
 }
 
 pub fn openat(dir: RawFd, name: &CStr, flags: libc::c_int) -> io::Result<OwnedFd> {
     // SAFETY: name is a valid C string; the returned fd is owned by us.
-    let fd = retry(-1, || unsafe { libc::openat(dir, name.as_ptr(), flags) })?;
+    let fd = retry(|| unsafe { libc::openat(dir, name.as_ptr(), flags) })?;
     // SAFETY: fd is a freshly opened descriptor.
     Ok(unsafe { OwnedFd::from_raw_fd(fd) })
 }
@@ -64,7 +74,7 @@ pub fn openat(dir: RawFd, name: &CStr, flags: libc::c_int) -> io::Result<OwnedFd
 pub fn fstatat(dir: RawFd, name: &CStr) -> io::Result<libc::stat> {
     let mut st = std::mem::MaybeUninit::<libc::stat>::uninit();
     // SAFETY: st points to writable memory of the right size.
-    retry(-1, || unsafe {
+    retry(|| unsafe {
         libc::fstatat(
             dir,
             name.as_ptr(),
@@ -79,37 +89,30 @@ pub fn fstatat(dir: RawFd, name: &CStr) -> io::Result<libc::stat> {
 pub fn fstat(fd: RawFd) -> io::Result<libc::stat> {
     let mut st = std::mem::MaybeUninit::<libc::stat>::uninit();
     // SAFETY: st points to writable memory of the right size.
-    retry(-1, || unsafe { libc::fstat(fd, st.as_mut_ptr()) })?;
+    retry(|| unsafe { libc::fstat(fd, st.as_mut_ptr()) })?;
     // SAFETY: fstat succeeded and filled st.
     Ok(unsafe { st.assume_init() })
 }
 
 pub fn readlinkat(dir: RawFd, name: &CStr) -> io::Result<Vec<u8>> {
-    let mut buf = vec![0u8; 256];
-    loop {
-        // SAFETY: buf is writable for buf.len() bytes.
-        let n = retry(-1, || unsafe {
-            libc::readlinkat(dir, name.as_ptr(), buf.as_mut_ptr().cast(), buf.len())
-        })? as usize;
-        if n < buf.len() {
-            buf.truncate(n);
-            return Ok(buf);
-        }
-        // Linux limits link targets to PATH_MAX; a longer one is refused so
-        // a batch of entries always fits in a frame.
-        if buf.len() > 4096 {
-            return Err(io::Error::other("link target too long"));
-        }
-        buf.resize(4097, 0);
+    // Linux limits link targets to PATH_MAX; a longer one is refused so a
+    // batch of entries always fits in a frame.
+    let mut buf = vec![0u8; 4097];
+    // SAFETY: buf is writable for buf.len() bytes.
+    let n = retry(|| unsafe {
+        libc::readlinkat(dir, name.as_ptr(), buf.as_mut_ptr().cast(), buf.len())
+    })? as usize;
+    if n == buf.len() {
+        return Err(io::Error::other("link target too long"));
     }
+    buf.truncate(n);
+    Ok(buf)
 }
 
 // Names in a directory, without `.` and `..`, sorted bytewise.
 pub fn read_dir_names(dir: &OwnedFd) -> io::Result<Vec<Vec<u8>>> {
     // SAFETY: dup of a valid fd; fdopendir takes ownership of the duplicate.
-    let dup = retry(-1, || unsafe {
-        libc::fcntl(dir.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 0)
-    })?;
+    let dup = retry(|| unsafe { libc::fcntl(dir.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 0) })?;
     // SAFETY: dup is a valid directory fd we own.
     let d = unsafe { libc::fdopendir(dup) };
     if d.is_null() {
@@ -154,6 +157,8 @@ unsafe fn errno_location() -> *mut libc::c_int {
 
 // To the hard limit, so deep trees can be walked with one descriptor per
 // level.
+// Not unit tested: depends on the limits of the system.
+#[cfg_attr(test, mutants::skip)]
 pub fn raise_fd_limit() {
     let mut lim = libc::rlimit {
         rlim_cur: 0,
@@ -191,20 +196,25 @@ const PSEUDO_FS: &[u32] = &[
     0x6e73_6673, // nsfs
 ];
 
-pub fn is_pseudo_fs(fd: RawFd) -> io::Result<bool> {
+// The file system type (`f_type` of `statfs`) of an open file.
+// Not unit tested: depends on the file systems of the system.
+#[cfg_attr(test, mutants::skip)]
+pub fn fs_type(fd: RawFd) -> io::Result<u32> {
     let mut st = std::mem::MaybeUninit::<libc::statfs>::uninit();
     // SAFETY: st points to writable memory of the right size.
-    retry(-1, || unsafe { libc::fstatfs(fd, st.as_mut_ptr()) })?;
+    retry(|| unsafe { libc::fstatfs(fd, st.as_mut_ptr()) })?;
     // SAFETY: fstatfs succeeded and filled st.
-    Ok(is_pseudo_fs_type(unsafe { st.assume_init() }.f_type as u32))
+    Ok(unsafe { st.assume_init() }.f_type as u32)
 }
 
-// Whether a file system type (`f_type` of `statfs`) is a pseudo file system.
-fn is_pseudo_fs_type(t: u32) -> bool {
+// Whether a file system type is a pseudo file system.
+pub fn is_pseudo_fs_type(t: u32) -> bool {
     PSEUDO_FS.contains(&t)
 }
 
 // Whether nobody reads stdout any more (the SSH session has ended).
+// Not unit tested: needs a real stdout whose reader goes away, e2e tests.
+#[cfg_attr(test, mutants::skip)]
 pub fn output_closed() -> bool {
     let mut fd = libc::pollfd {
         fd: 1,
@@ -260,6 +270,44 @@ mod tests {
             libc::OVERLAYFS_SUPER_MAGIC,
         ] {
             assert!(!is_pseudo_fs_type(t as u32), "{t:#x}");
+        }
+    }
+
+    // docs/collect-mode.md, System calls.
+    #[test]
+    fn open_flags() {
+        use libc::*;
+        let has = |flags: c_int, all: &[c_int]| all.iter().all(|f| flags & f == *f);
+        assert!(has(
+            DIR_FLAGS,
+            &[O_DIRECTORY, O_NOFOLLOW, O_NOATIME, O_CLOEXEC, O_NOCTTY]
+        ));
+        assert!(has(
+            PATH_FLAGS,
+            &[O_PATH, O_DIRECTORY, O_NOFOLLOW, O_CLOEXEC]
+        ));
+        assert!(has(
+            FILE_FLAGS,
+            &[O_NOFOLLOW, O_NOATIME, O_CLOEXEC, O_NOCTTY, O_NONBLOCK]
+        ));
+        assert_eq!(DIR_FLAGS & O_ACCMODE, O_RDONLY);
+        assert_eq!(FILE_FLAGS & O_ACCMODE, O_RDONLY);
+    }
+
+    #[test]
+    fn file_kinds() {
+        use parity_proto::FileKind::*;
+        for (mode, kind) in [
+            (libc::S_IFREG, Regular),
+            (libc::S_IFDIR, Directory),
+            (libc::S_IFLNK, Symlink),
+            (libc::S_IFCHR, CharDevice),
+            (libc::S_IFBLK, BlockDevice),
+            (libc::S_IFIFO, Fifo),
+            (libc::S_IFSOCK, Socket),
+            (0, Unknown),
+        ] {
+            assert_eq!(file_kind(mode | 0o644), kind, "{mode:o}");
         }
     }
 }

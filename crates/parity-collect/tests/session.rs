@@ -785,3 +785,15 @@ fn sensitive_patterns_apply_per_request() {
         ]
     ));
 }
+
+#[test]
+fn walk_reports_long_link_targets() {
+    let t = TempDir::new("longlink");
+    let target = format!("/{}", "x/".repeat(2000));
+    symlink(&target, t.path("l")).unwrap();
+    let (entries, _, _) = walk(WalkRequest {
+        roots: vec![t.bytes("l")],
+        ..Default::default()
+    });
+    assert_eq!(entries[0].link_target.as_deref(), Some(target.as_bytes()));
+}

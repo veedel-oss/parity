@@ -68,7 +68,7 @@ pub fn open_regular_at(
     if st.st_mode & libc::S_IFMT != libc::S_IFREG {
         return Err(OpenError::NotRegular);
     }
-    if sys::is_pseudo_fs(fd.as_raw_fd())? {
+    if sys::is_pseudo_fs_type(sys::fs_type(fd.as_raw_fd())?) {
         return Err(OpenError::PseudoFs);
     }
     let size = st.st_size as u64;
