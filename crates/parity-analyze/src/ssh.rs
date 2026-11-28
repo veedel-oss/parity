@@ -615,6 +615,14 @@ mod tests {
     }
 
     #[test]
+    fn stderr_keeps_the_last_lines() {
+        let text: String = (0..25).map(|i| format!("line {i}  \n")).collect();
+        let mut f = StderrForward::start("t", std::io::Cursor::new(text.into_bytes()));
+        let want: Vec<String> = (5..25).map(|i| format!("line {i}")).collect();
+        assert_eq!(f.finish(), want);
+    }
+
+    #[test]
     fn become_names() {
         let names = [Become::Sudo, Become::Su, Become::None].map(Become::name);
         assert_eq!(names, ["sudo", "su", "none"]);
